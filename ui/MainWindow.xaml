@@ -1,0 +1,203 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Pulpo Custom Debloat"
+        Width="1180"
+        Height="760"
+        MinWidth="920"
+        MinHeight="620"
+        WindowStartupLocation="CenterScreen"
+        Background="#F4F5F6"
+        FontFamily="Segoe UI"
+        TextOptions.TextFormattingMode="Display">
+    <Window.Resources>
+        <SolidColorBrush x:Key="Ink" Color="#171A1D" />
+        <SolidColorBrush x:Key="Muted" Color="#626970" />
+        <SolidColorBrush x:Key="Surface" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="Line" Color="#D8DCDF" />
+        <SolidColorBrush x:Key="Accent" Color="#087E5B" />
+        <SolidColorBrush x:Key="AccentHover" Color="#066A4D" />
+        <SolidColorBrush x:Key="Warning" Color="#B85C00" />
+        <SolidColorBrush x:Key="Danger" Color="#B42318" />
+
+        <Style TargetType="Button">
+            <Setter Property="MinHeight" Value="36" />
+            <Setter Property="Padding" Value="14,7" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Background" Value="{StaticResource Surface}" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                <Setter TargetName="Border" Property="Opacity" Value="0.9" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Border" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource Accent}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="{StaticResource Accent}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Padding" Value="18,11" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Foreground" Value="{StaticResource Muted}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="#F4F5F6">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="78" />
+            <RowDefinition Height="62" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="68" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="#171A1D" BorderBrush="#087E5B" BorderThickness="0,0,0,4">
+            <Grid Margin="24,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE713;" Foreground="#40C99B" FontSize="25" Margin="0,0,13,0" />
+                    <StackPanel>
+                        <TextBlock Text="Pulpo Custom Debloat" Foreground="White" FontSize="24" FontWeight="SemiBold" />
+                        <TextBlock x:Name="SystemInfoText" Text="Windows" Foreground="#ADB5BD" FontSize="12" />
+                    </StackPanel>
+                </StackPanel>
+                <Border Grid.Column="1" Background="#242A2E" BorderBrush="#3A4247" BorderThickness="1" CornerRadius="5" Padding="12,7" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE72E;" Foreground="#40C99B" Margin="0,0,8,0" />
+                        <TextBlock Text="Administrador" Foreground="#DDE2E5" FontSize="12" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
+            <Grid Margin="24,11">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="PERFIL" FontSize="11" FontWeight="Bold" Foreground="{StaticResource Muted}" VerticalAlignment="Center" Margin="0,0,14,0" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <Button x:Name="SafeProfileButton" Content="Basica segura" />
+                    <Button x:Name="WorkshopProfileButton" Content="Taller completo" />
+                    <Button x:Name="AggressiveProfileButton" Content="Captura agresiva" Foreground="{StaticResource Danger}" />
+                    <Button x:Name="ClearSelectionButton" ToolTip="Quitar toda la seleccion" Width="38" Padding="8">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE74D;" FontSize="14" />
+                    </Button>
+                </StackPanel>
+                <TextBlock x:Name="SelectionText" Grid.Column="2" Text="0 seleccionados" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <TabControl x:Name="MainTabs" Grid.Row="2" Background="#F4F5F6" BorderThickness="0" Padding="16,8,16,0">
+            <TabItem Header="Ajustes">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="SettingsPanel" Margin="8,12,18,24" />
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Aplicaciones">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="AppsPanel" Margin="8,12,18,24" />
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Servicios">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="ServicesPanel" Margin="8,12,18,24" />
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Herramientas">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="14,18,18,24">
+                        <TextBlock Text="Descargas oficiales" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Ink}" Margin="0,0,0,18" />
+                        <WrapPanel x:Name="ToolsPanel" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="Restaurar y registro">
+                <Grid Margin="14,18,18,24">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="RestoreSettingsButton">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE777;" Margin="0,0,8,0" />
+                                <TextBlock Text="Restaurar ultimo respaldo" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="OpenSystemRestoreButton">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE7A7;" Margin="0,0,8,0" />
+                                <TextBlock Text="Abrir Restaurar sistema" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="OpenBackupsButton" ToolTip="Abrir carpeta de respaldos" Width="38" Padding="8">
+                            <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE838;" />
+                        </Button>
+                    </StackPanel>
+                    <TextBlock Grid.Row="1" Text="La restauracion interna recupera Registro, servicios y energia. Para aplicaciones eliminadas usa el punto de restauracion." TextWrapping="Wrap" Foreground="{StaticResource Warning}" Margin="0,13,0,13" />
+                    <TextBox x:Name="LogTextBox" Grid.Row="2" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12" Background="#171A1D" Foreground="#DDE2E5" BorderThickness="0" Padding="12" />
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="3" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+            <Grid Margin="24,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="170" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="StatusText" Text="Listo para revisar" Foreground="{StaticResource Ink}" FontWeight="SemiBold" />
+                    <ProgressBar x:Name="WorkProgress" Height="4" Margin="0,7,16,0" Minimum="0" Maximum="100" Value="0" Foreground="{StaticResource Accent}" />
+                </StackPanel>
+                <Button x:Name="PreviewButton" Grid.Column="1">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A7;" Margin="0,0,8,0" />
+                        <TextBlock Text="Previsualizar" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="ApplyButton" Grid.Column="2" Style="{StaticResource PrimaryButton}" Margin="0" MinWidth="175">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE73E;" Margin="0,0,8,0" />
+                        <TextBlock Text="Aplicar seleccion" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
