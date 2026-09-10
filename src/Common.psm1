@@ -396,27 +396,35 @@ function Invoke-DebloatNativeCommand {
 
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
-    if (-not $process.Start()) {
-        throw [System.InvalidOperationException]::new("No se pudo iniciar $FilePath $Arguments")
-    }
+    try {
+        if (-not $process.Start()) {
+            throw [System.InvalidOperationException]::new("No se pudo iniciar $FilePath $Arguments")
+        }
 
-    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-    $stderrTask = $process.StandardError.ReadToEndAsync()
-    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-        $process.Kill()
-        throw [System.TimeoutException]::new("El comando excedio $TimeoutSeconds segundos: $FilePath $Arguments")
-    }
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+            $process.Kill()
+            $process.WaitForExit()
+            $stdoutTask.GetAwaiter().GetResult() | Out-Null
+            $stderrTask.GetAwaiter().GetResult() | Out-Null
+            throw [System.TimeoutException]::new("El comando excedio $TimeoutSeconds segundos: $FilePath $Arguments")
+        }
 
-    $stdout = $stdoutTask.GetAwaiter().GetResult()
-    $stderr = $stderrTask.GetAwaiter().GetResult()
-    if ($process.ExitCode -notin $AllowedExitCodes) {
-        throw [System.ComponentModel.Win32Exception]::new("El comando fallo con codigo $($process.ExitCode): $FilePath $Arguments. Salida: $stdout Error: $stderr")
-    }
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        if ($process.ExitCode -notin $AllowedExitCodes) {
+            throw [System.ComponentModel.Win32Exception]::new("El comando fallo con codigo $($process.ExitCode): $FilePath $Arguments. Salida: $stdout Error: $stderr")
+        }
 
-    return [pscustomobject]@{
-        ExitCode = $process.ExitCode
-        StandardOutput = $stdout
-        StandardError = $stderr
+        return [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            StandardOutput = $stdout
+            StandardError = $stderr
+        }
+    }
+    finally {
+        $process.Dispose()
     }
 }
 

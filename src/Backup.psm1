@@ -93,19 +93,29 @@ function New-DebloatRestorePoint {
     }
 
     try {
-        Enable-ComputerRestore -Drive $systemDrive
         if (-not (Test-Path -LiteralPath $policyPath)) {
             New-Item -Path $policyPath -Force | Out-Null
         }
         New-ItemProperty -LiteralPath $policyPath -Name $policyName -PropertyType DWord -Value 0 -Force | Out-Null
-        Checkpoint-Computer -Description $Description -RestorePointType MODIFY_SETTINGS
+        $driveLiteral = ConvertTo-DebloatPowerShellLiteral -Value $systemDrive
+        $descriptionLiteral = ConvertTo-DebloatPowerShellLiteral -Value $Description
+        $checkpointScript = "`$ErrorActionPreference = 'Stop'; Enable-ComputerRestore -Drive $driveLiteral; Checkpoint-Computer -Description $descriptionLiteral -RestorePointType MODIFY_SETTINGS"
+        $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($checkpointScript))
+        $powershellPath = Join-Path $PSHOME 'powershell.exe'
+        Invoke-DebloatNativeCommand -FilePath $powershellPath -Arguments "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand $encodedCommand" -TimeoutSeconds 120 -AllowedExitCodes @(0) | Out-Null
         Write-DebloatLog -Context $Context -Level Success -Component 'RestorePoint' -Message 'Punto de restauracion creado.' -Data @{ Description = $Description; Drive = $systemDrive }
     }
     catch {
         $descriptionLiteral = ConvertTo-DebloatPowerShellLiteral -Value $Description
         $command = "Enable-ComputerRestore -Drive '$systemDrive'; Checkpoint-Computer -Description $descriptionLiteral -RestorePointType MODIFY_SETTINGS"
-        Write-DebloatNotApplied -Context $Context -Level Error -Component 'RestorePoint' -Instruction "Crear el punto de restauracion obligatorio $Description" -Command $command -Reason $_.Exception.Message -Data @{ Description = $Description; Drive = $systemDrive }
-        throw [System.InvalidOperationException]::new("No se pudo crear el punto de restauracion obligatorio '$Description'. $($_.Exception.Message)", $_.Exception)
+        $reason = if ($_.Exception -is [System.TimeoutException]) {
+            'La creacion del punto de restauracion excedio el limite de 120 segundos y fue cancelada.'
+        }
+        else {
+            $_.Exception.Message
+        }
+        Write-DebloatNotApplied -Context $Context -Level Error -Component 'RestorePoint' -Instruction "Crear el punto de restauracion obligatorio $Description" -Command $command -Reason $reason -Data @{ Description = $Description; Drive = $systemDrive; TimeoutSeconds = 120 }
+        throw [System.InvalidOperationException]::new("No se pudo crear el punto de restauracion obligatorio '$Description'. $reason", $_.Exception)
     }
     finally {
         if ($policyExisted) {

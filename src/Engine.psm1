@@ -99,7 +99,7 @@ function Invoke-DebloatSelection {
     $context = New-DebloatSession -ProjectRoot $ProjectRoot -ActionIds $ActionIds -ServiceIds $ServiceIds
 
     try {
-        & $ProgressCallback 'Creando punto de restauracion obligatorio' 0 ($actions.Count + $services.Count) $context.SessionPath
+        & $ProgressCallback 'Creando punto de restauracion obligatorio (limite: 120 segundos)' 0 ($actions.Count + $services.Count) $context.SessionPath
         New-DebloatRestorePoint -Context $context -Description 'Revertir cambios - Pulpo Custom Debloat'
         Export-DebloatAppxInventory -Context $context
 
