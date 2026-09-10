@@ -174,7 +174,7 @@ function Get-SelectedIds {
             ForEach-Object Key |
             Sort-Object
     )
-    Write-Output -NoEnumerate $selected
+    return ,$selected
 }
 
 function Set-ProfileSelection {

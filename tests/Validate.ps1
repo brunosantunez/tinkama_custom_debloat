@@ -65,6 +65,25 @@ $window.Close()
 Import-Module (Join-Path $projectRoot 'src\UserInterface.psm1')
 Import-Module (Join-Path $projectRoot 'src\Engine.psm1')
 
+$selectionCases = @(
+    @{ Expected = [string[]]@(); CheckBoxes = @{ first = [pscustomobject]@{ IsChecked = $false } } },
+    @{ Expected = [string[]]@('first'); CheckBoxes = @{ first = [pscustomobject]@{ IsChecked = $true } } },
+    @{ Expected = [string[]]@('first', 'second'); CheckBoxes = @{
+        second = [pscustomobject]@{ IsChecked = $true }
+        first = [pscustomobject]@{ IsChecked = $true }
+    } }
+)
+foreach ($selectionCase in $selectionCases) {
+    [string[]]$selectedIds = Get-SelectedIds -CheckBoxes $selectionCase.CheckBoxes
+    $selectionJson = [pscustomobject]@{ ActionIds = $selectedIds } | ConvertTo-Json -Depth 3
+    $serializedIds = ($selectionJson | ConvertFrom-Json).ActionIds
+    if ($selectedIds.GetType() -ne [string[]] -or
+        @($serializedIds).Count -ne $selectionCase.Expected.Count -or
+        (@($serializedIds) -join ',') -ne ($selectionCase.Expected -join ',')) {
+        throw [System.IO.InvalidDataException]::new("La seleccion no conserva el contrato JSON: $selectionJson")
+    }
+}
+
 [pscustomobject]@{
     ScriptsParsed = $scriptFiles.Count
     Actions = $catalog.Actions.Count
