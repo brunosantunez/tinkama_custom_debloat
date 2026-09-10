@@ -362,6 +362,37 @@ function Show-DebloatConfirmation {
     return $dialog.ShowDialog() -eq $true
 }
 
+function ConvertTo-DebloatLogDataText {
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        [object]$Data
+    )
+
+    if ($null -eq $Data) {
+        return ''
+    }
+
+    $parts = [System.Collections.Generic.List[string]]::new()
+    foreach ($property in @($Data.PSObject.Properties | Sort-Object Name)) {
+        $valueText = if ($null -eq $property.Value) {
+            'null'
+        }
+        elseif ($property.Value -is [System.Array]) {
+            @($property.Value | ForEach-Object { [string]$_ }) -join ','
+        }
+        elseif ($property.Value -is [pscustomobject]) {
+            $property.Value | ConvertTo-Json -Compress -Depth 4
+        }
+        else {
+            [string]$property.Value
+        }
+        $parts.Add("$($property.Name)=$($valueText -replace '[\r\n]+', ' ')")
+    }
+    return $parts -join '; '
+}
+
 function Get-FormattedSessionLog {
     [OutputType([string])]
     param(
@@ -378,7 +409,9 @@ function Get-FormattedSessionLog {
     foreach ($rawLine in @(Get-Content -LiteralPath $logPath | Select-Object -Last 250)) {
         $entry = $rawLine | ConvertFrom-Json
         $time = [DateTime]::Parse($entry.TimestampUtc).ToLocalTime().ToString('HH:mm:ss')
-        $lines.Add("$time [$($entry.Level)] [$($entry.Component)] $($entry.Message)")
+        $dataText = ConvertTo-DebloatLogDataText -Data $entry.Data
+        $suffix = if ([string]::IsNullOrWhiteSpace($dataText)) { '' } else { " | $dataText" }
+        $lines.Add("$time [$($entry.Level)] [$($entry.Component)] $($entry.Message)$suffix")
     }
     return $lines -join [Environment]::NewLine
 }
@@ -423,7 +456,8 @@ function Start-DebloatWorkerMonitor {
     $Window.Tag.LastError = ''
     Set-WindowBusy -Busy $true -Buttons $Buttons -ProgressBar $progressBar
     $log.Text = "Registro del proceso: $($Job.StandardErrorPath)"
-    $state = @{ ProgressFailed = $false }
+    $tabs.SelectedIndex = 4
+    $state = @{ ProgressFailed = $false; SessionPath = '' }
     $timer = [System.Windows.Threading.DispatcherTimer]::new()
     $timer.Interval = [TimeSpan]::FromMilliseconds(250)
     $timer.Add_Tick(({
@@ -440,11 +474,15 @@ function Start-DebloatWorkerMonitor {
                     $tabs.SelectedIndex = 4
                 }
                 if ($result.SessionPath) {
-                    $log.AppendText([Environment]::NewLine + (Get-FormattedSessionLog -SessionPath $result.SessionPath))
+                    $log.Text = "Registro del proceso: $($Job.StandardErrorPath)" + [Environment]::NewLine +
+                        (Get-FormattedSessionLog -SessionPath $result.SessionPath)
                 }
                 if (-not $result.Success) {
                     $Window.Tag.LastError = $result.Message
                     $log.AppendText([Environment]::NewLine + ($result | ConvertTo-Json -Depth 6))
+                    $tabs.SelectedIndex = 4
+                }
+                elseif ('WarningCount' -in $result.PSObject.Properties.Name -and [int]$result.WarningCount -gt 0) {
                     $tabs.SelectedIndex = 4
                 }
                 $log.ScrollToEnd()
@@ -459,6 +497,12 @@ function Start-DebloatWorkerMonitor {
                     }
                 }
                 $status.Text = [string]$progress.Message
+                if ('SessionPath' -in $progress.PSObject.Properties.Name -and -not [string]::IsNullOrWhiteSpace([string]$progress.SessionPath)) {
+                    $state.SessionPath = [string]$progress.SessionPath
+                    $log.Text = "Registro del proceso: $($Job.StandardErrorPath)" + [Environment]::NewLine +
+                        (Get-FormattedSessionLog -SessionPath $state.SessionPath)
+                    $log.ScrollToEnd()
+                }
                 if ([int]$progress.Total -gt 0) {
                     $progressBar.IsIndeterminate = $false
                     $progressBar.Value = [Math]::Round(([int]$progress.Current / [int]$progress.Total) * 100)

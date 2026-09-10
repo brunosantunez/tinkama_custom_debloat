@@ -52,7 +52,7 @@ function Complete-DebloatSession {
         [pscustomobject]$Context,
 
         [Parameter(Mandatory)]
-        [ValidateSet('Completed', 'Failed', 'Restored')]
+        [ValidateSet('Completed', 'CompletedWithWarnings', 'Failed', 'Restored')]
         [string]$Status,
 
         [Parameter(Mandatory)]
@@ -147,7 +147,7 @@ function Get-LatestDebloatSessionPath {
             continue
         }
         $metadata = Read-DebloatJson -Path $metadataPath
-        if ($metadata.Status -in @('Completed', 'Failed')) {
+        if ($metadata.Status -in @('Completed', 'CompletedWithWarnings', 'Failed')) {
             [pscustomobject]@{ Path = $directory.FullName; LastWriteTime = $directory.LastWriteTime }
         }
     }

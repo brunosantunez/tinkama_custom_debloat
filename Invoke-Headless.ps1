@@ -28,25 +28,33 @@ try {
     $catalog = Import-DebloatCatalog -Path (Join-Path $projectRoot 'config\catalog.json')
     $progressPath = "$RequestPath.progress.json"
     $progressCallback = {
-        param([string]$Message, [int]$Current, [int]$Total)
+        param([string]$Message, [int]$Current, [int]$Total, [string]$SessionPath)
         Save-DebloatJson -Path $progressPath -InputObject ([pscustomobject]@{
             Message = $Message
             Current = $Current
             Total = $Total
+            SessionPath = $SessionPath
         })
     }
 
-    $sessionPath = Invoke-DebloatSelection `
+    $execution = Invoke-DebloatSelection `
         -ProjectRoot $projectRoot `
         -Catalog $catalog `
         -ActionIds ([string[]]$request.ActionIds) `
         -ServiceIds ([string[]]$request.ServiceIds) `
         -ProgressCallback $progressCallback
 
+    $message = if ($execution.WarningCount -gt 0) {
+        "Optimizacion finalizada con $($execution.WarningCount) advertencias. Revisa Restaurar y registro, y reinicia Windows."
+    }
+    else {
+        'Optimizacion finalizada. Reinicia Windows para completar todos los cambios.'
+    }
     [pscustomobject]@{
         Success = $true
-        SessionPath = $sessionPath
-        Message = 'Optimizacion finalizada. Reinicia Windows para completar todos los cambios.'
+        SessionPath = $execution.SessionPath
+        WarningCount = $execution.WarningCount
+        Message = $message
     } | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding UTF8
     exit 0
 }

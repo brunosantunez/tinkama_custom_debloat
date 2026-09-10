@@ -35,7 +35,7 @@ $application = [System.Windows.Application]::new()
 $application.ShutdownMode = [System.Windows.ShutdownMode]::OnExplicitShutdown
 $timer = [System.Windows.Threading.DispatcherTimer]::new()
 $timer.Interval = [TimeSpan]::FromMilliseconds(500)
-$testState = @{ Phase = 'Open'; Failure = $null; Deadline = [DateTime]::UtcNow.AddSeconds(90) }
+$testState = @{ Phase = 'Open'; Failure = $null; Deadline = [DateTime]::UtcNow.AddSeconds(90); LiveLogObserved = $false }
 $timer.Add_Tick(({
     $windows = @($application.Windows | Where-Object Name -eq 'MainWindow')
     if ($windows.Count -ne 1) { return }
@@ -44,7 +44,12 @@ $timer.Add_Tick(({
         if ([DateTime]::UtcNow -gt $testState.Deadline) {
             throw [TimeoutException]::new("La prueba de interfaz excedio 90 segundos. Fase: $($testState.Phase)")
         }
-        if ($window.Tag.Busy) { return }
+        if ($window.Tag.Busy) {
+            if ($testState.Phase -eq 'ProgressSuccess' -and $window.FindName('LogTextBox').Text -match 'Live fixture step.*Current=') {
+                $testState.LiveLogObserved = $true
+            }
+            return
+        }
         if (-not $window.FindName('ApplyButton').IsEnabled) {
             throw [InvalidOperationException]::new('El boton Aplicar no se recupero al finalizar el worker.')
         }
@@ -76,12 +81,15 @@ $timer.Add_Tick(({
                     throw [InvalidOperationException]::new('La interfaz no mostro el fallo anterior a generar resultado.')
                 }
                 Save-WindowScreenshot -Window $window -Path (Join-Path $artifactRoot 'ui-worker-error.png')
-                $job = Start-DebloatWorkerProcess -ScriptPath (Join-Path $PSScriptRoot 'Write-ProgressFixture.ps1') -ScriptArguments @('-OutputBasePath', ('"{0}"' -f $outputBase), '-Iterations', '100') -OutputBasePath $outputBase -WorkingDirectory $projectRoot
+                $job = Start-DebloatWorkerProcess -ScriptPath (Join-Path $PSScriptRoot 'Write-ProgressFixture.ps1') -ScriptArguments @('-OutputBasePath', ('"{0}"' -f $outputBase), '-Iterations', '1000') -OutputBasePath $outputBase -WorkingDirectory $projectRoot
                 $testState.Phase = 'ProgressSuccess'
             }
             'ProgressSuccess' {
                 if ($null -eq $window.Tag.LastResult -or -not $window.Tag.LastResult.Success -or $window.Tag.LastError) {
                     throw [InvalidOperationException]::new("La interfaz no completo el seguimiento de progreso: $($window.Tag.LastError)")
+                }
+                if (-not $testState.LiveLogObserved) {
+                    throw [InvalidOperationException]::new('La interfaz no mostro el registro mientras el worker estaba activo.')
                 }
                 $timer.Stop()
                 $window.Close()
@@ -107,4 +115,4 @@ $timer.Start()
 Show-DebloatWindow -ProjectRoot $projectRoot -Catalog $catalog
 $application.Shutdown()
 if ($null -ne $testState.Failure) { throw $testState.Failure }
-Write-Output 'WPF profiles, worker failure recovery and live progress passed without system changes.'
+Write-Output 'WPF profiles, worker recovery, live progress and live logs passed without system changes.'

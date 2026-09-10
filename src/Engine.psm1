@@ -34,7 +34,7 @@ function Get-SelectedCatalogEntries {
 }
 
 function Invoke-DebloatSelection {
-    [OutputType([string])]
+    [OutputType([pscustomobject])]
     param(
         [Parameter(Mandatory)]
         [string]$ProjectRoot,
@@ -63,32 +63,67 @@ function Invoke-DebloatSelection {
     $context = New-DebloatSession -ProjectRoot $ProjectRoot -ActionIds $ActionIds -ServiceIds $ServiceIds
 
     try {
-        & $ProgressCallback 'Creando punto de restauracion obligatorio' 0 ($actions.Count + $services.Count)
+        & $ProgressCallback 'Creando punto de restauracion obligatorio' 0 ($actions.Count + $services.Count) $context.SessionPath
         New-DebloatRestorePoint -Context $context -Description 'Revertir cambios - Pulpo Custom Debloat'
         Export-DebloatAppxInventory -Context $context
 
+        $warningCount = 0
         $current = 0
         $total = $actions.Count + $services.Count
         foreach ($action in $actions) {
             $current++
-            & $ProgressCallback $action.Title $current $total
-            switch ($action.Kind) {
-                'Registry' { Invoke-DebloatRegistryAction -Context $context -Action $action }
-                'Packages' { Invoke-DebloatPackageAction -Context $context -Action $action }
-                'Special' { Invoke-DebloatSpecialAction -Context $context -Action $action }
-                default { throw [System.InvalidOperationException]::new("Tipo de accion no admitido: $($action.Kind)") }
+            try {
+                & $ProgressCallback $action.Title $current $total $context.SessionPath
+            }
+            catch {
+                $warningCount++
+                Write-DebloatLog -Context $context -Level Warning -Component 'Progress' -Message 'No se pudo actualizar el progreso; la optimizacion continuara.' -Data @{ ActionId = $action.Id; Error = $_.Exception.Message }
+            }
+            try {
+                $actionWarnings = switch ($action.Kind) {
+                    'Registry' { Invoke-DebloatRegistryAction -Context $context -Action $action }
+                    'Packages' { Invoke-DebloatPackageAction -Context $context -Action $action }
+                    'Special' {
+                        Invoke-DebloatSpecialAction -Context $context -Action $action | Out-Null
+                        0
+                    }
+                    default { throw [System.InvalidOperationException]::new("Tipo de accion no admitido: $($action.Kind)") }
+                }
+                $warningCount += [int]$actionWarnings
+            }
+            catch {
+                $warningCount++
+                Write-DebloatLog -Context $context -Level Warning -Component 'Engine' -Message 'Se omitio una accion y la optimizacion continuara.' -Data @{ ActionId = $action.Id; Title = $action.Title; Error = $_.Exception.Message }
             }
         }
 
         foreach ($service in $services) {
             $current++
-            & $ProgressCallback $service.Title $current $total
-            Invoke-DebloatServiceAction -Context $context -ServiceEntry $service
+            try {
+                & $ProgressCallback $service.Title $current $total $context.SessionPath
+            }
+            catch {
+                $warningCount++
+                Write-DebloatLog -Context $context -Level Warning -Component 'Progress' -Message 'No se pudo actualizar el progreso; la optimizacion continuara.' -Data @{ ServiceId = $service.Id; Error = $_.Exception.Message }
+            }
+            try {
+                $warningCount += Invoke-DebloatServiceAction -Context $context -ServiceEntry $service
+            }
+            catch {
+                $warningCount++
+                Write-DebloatLog -Context $context -Level Warning -Component 'Engine' -Message 'Se omitio una accion de servicio y la optimizacion continuara.' -Data @{ ServiceId = $service.Id; Title = $service.Title; Error = $_.Exception.Message }
+            }
         }
 
-        Complete-DebloatSession -Context $context -Status Completed -ErrorMessage ''
-        Write-DebloatLog -Context $context -Level Success -Component 'Engine' -Message 'Optimizacion completada.' -Data @{ Actions = $actions.Count; Services = $services.Count }
-        return $context.SessionPath
+        $completionStatus = if ($warningCount -gt 0) { 'CompletedWithWarnings' } else { 'Completed' }
+        $warningMessage = if ($warningCount -gt 0) { "La optimizacion finalizo con $warningCount advertencias. Revisa el registro." } else { '' }
+        Complete-DebloatSession -Context $context -Status $completionStatus -ErrorMessage $warningMessage
+        $level = if ($warningCount -gt 0) { 'Warning' } else { 'Success' }
+        Write-DebloatLog -Context $context -Level $level -Component 'Engine' -Message 'Optimizacion completada.' -Data @{ Actions = $actions.Count; Services = $services.Count; Warnings = $warningCount }
+        return [pscustomobject]@{
+            SessionPath = $context.SessionPath
+            WarningCount = $warningCount
+        }
     }
     catch {
         $_.Exception.Data['SessionPath'] = $context.SessionPath

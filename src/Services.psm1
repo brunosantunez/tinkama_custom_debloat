@@ -53,6 +53,7 @@ function Save-ServiceSnapshot {
 }
 
 function Invoke-DebloatServiceAction {
+    [OutputType([int])]
     param(
         [Parameter(Mandatory)]
         [pscustomobject]$Context,
@@ -62,28 +63,37 @@ function Invoke-DebloatServiceAction {
     )
 
     if ([bool]$ServiceEntry.Protected) {
-        throw [System.UnauthorizedAccessException]::new("El servicio $($ServiceEntry.Pattern) esta protegido por el catalogo.")
+        Write-DebloatLog -Context $Context -Level Warning -Component 'Service' -Message 'El servicio esta protegido por el catalogo y se omitio.' -Data @{ ServiceId = $ServiceEntry.Id; Pattern = $ServiceEntry.Pattern }
+        return 1
     }
 
     $matches = @(Get-ServicesByPattern -Pattern $ServiceEntry.Pattern)
     if ($matches.Count -eq 0) {
         Write-DebloatLog -Context $Context -Level Info -Component 'Service' -Message 'El servicio opcional no existe en este equipo.' -Data @{ ServiceId = $ServiceEntry.Id; Pattern = $ServiceEntry.Pattern }
-        return
+        return 0
     }
 
     $protected = Get-ProtectedServiceNames
+    $failureCount = 0
     foreach ($service in $matches) {
-        if ($service.Name -in $protected) {
-            throw [System.UnauthorizedAccessException]::new("El motor rechazo modificar el servicio critico $($service.Name).")
-        }
+        try {
+            if ($service.Name -in $protected) {
+                throw [System.UnauthorizedAccessException]::new("El motor rechazo modificar el servicio critico $($service.Name).")
+            }
 
-        Save-ServiceSnapshot -Context $Context -Service $service
-        Set-Service -Name $service.Name -StartupType $ServiceEntry.StartupType
-        if ($ServiceEntry.StartupType -eq 'Disabled' -and $service.State -ne 'Stopped') {
-            Stop-Service -Name $service.Name -Force
+            Save-ServiceSnapshot -Context $Context -Service $service
+            Set-Service -Name $service.Name -StartupType $ServiceEntry.StartupType
+            if ($ServiceEntry.StartupType -eq 'Disabled' -and $service.State -ne 'Stopped') {
+                Stop-Service -Name $service.Name -Force
+            }
+            Write-DebloatLog -Context $Context -Level Success -Component 'Service' -Message 'Tipo de inicio de servicio aplicado.' -Data @{ ServiceId = $ServiceEntry.Id; Name = $service.Name; Previous = $service.StartMode; StartupType = $ServiceEntry.StartupType }
         }
-        Write-DebloatLog -Context $Context -Level Success -Component 'Service' -Message 'Tipo de inicio de servicio aplicado.' -Data @{ ServiceId = $ServiceEntry.Id; Name = $service.Name; Previous = $service.StartMode; StartupType = $ServiceEntry.StartupType }
+        catch {
+            $failureCount++
+            Write-DebloatLog -Context $Context -Level Warning -Component 'Service' -Message 'Se omitio un servicio y la optimizacion continuara.' -Data @{ ServiceId = $ServiceEntry.Id; Name = $service.Name; StartupType = $ServiceEntry.StartupType; Error = $_.Exception.Message }
+        }
     }
+    return $failureCount
 }
 
 function Restore-DebloatServices {

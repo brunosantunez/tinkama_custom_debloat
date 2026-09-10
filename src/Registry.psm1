@@ -156,6 +156,7 @@ function Set-DebloatRegistryValue {
 }
 
 function Invoke-DebloatRegistryAction {
+    [OutputType([int])]
     param(
         [Parameter(Mandatory)]
         [pscustomobject]$Context,
@@ -164,10 +165,19 @@ function Invoke-DebloatRegistryAction {
         [pscustomobject]$Action
     )
 
+    $failureCount = 0
     foreach ($operation in @($Action.Registry)) {
-        Set-DebloatRegistryValue -Context $Context -ActionId $Action.Id -Operation $operation
+        try {
+            Set-DebloatRegistryValue -Context $Context -ActionId $Action.Id -Operation $operation
+        }
+        catch {
+            $failureCount++
+            Write-DebloatLog -Context $Context -Level Warning -Component 'Registry' -Message 'Se omitio un valor de Registro y la optimizacion continuara.' -Data @{ ActionId = $Action.Id; Path = $operation.Path; Name = $operation.Name; Error = $_.Exception.Message }
+        }
     }
-    Write-DebloatLog -Context $Context -Level Success -Component 'RegistryAction' -Message 'Accion de Registro completada.' -Data @{ ActionId = $Action.Id; Title = $Action.Title }
+    $level = if ($failureCount -gt 0) { 'Warning' } else { 'Success' }
+    Write-DebloatLog -Context $Context -Level $level -Component 'RegistryAction' -Message 'Accion de Registro procesada.' -Data @{ ActionId = $Action.Id; Title = $Action.Title; Warnings = $failureCount }
+    return $failureCount
 }
 
 function Restore-DebloatRegistry {

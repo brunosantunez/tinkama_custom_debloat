@@ -25,7 +25,10 @@ $action = [pscustomobject]@{
 }
 
 try {
-    Invoke-DebloatRegistryAction -Context $context -Action $action
+    $warningCount = Invoke-DebloatRegistryAction -Context $context -Action $action
+    if ($warningCount -ne 0) {
+        throw [System.InvalidOperationException]::new("La escritura temporal produjo $warningCount advertencias.")
+    }
 
     $readKey = Get-Item -LiteralPath $registryPath
     try {
