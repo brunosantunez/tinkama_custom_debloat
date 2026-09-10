@@ -7,6 +7,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 Import-Module (Join-Path $projectRoot 'src\Common.psm1')
 Import-Module (Join-Path $projectRoot 'src\Worker.psm1')
 Import-Module (Join-Path $projectRoot 'src\Execution.psm1')
+Import-Module (Join-Path $projectRoot 'src\UserInterface.psm1')
 $userPolicy = Get-ExecutionPolicy -Scope CurrentUser
 $machinePolicy = Get-ExecutionPolicy -Scope LocalMachine
 Enable-DebloatSessionScripts -ProjectRoot $projectRoot | Out-Null
@@ -20,6 +21,7 @@ New-Item -ItemType Directory -Path $outputRoot | Out-Null
 $outputBase = Join-Path $outputRoot 'concurrent'
 $job = Start-DebloatWorkerProcess -ScriptPath (Join-Path $PSScriptRoot 'Write-ProgressFixture.ps1') -ScriptArguments @('-OutputBasePath', ('"{0}"' -f $outputBase), '-Iterations', '600') -OutputBasePath $outputBase -WorkingDirectory $projectRoot
 $reads = 0
+$logReads = 0
 $deadline = [DateTime]::UtcNow.AddSeconds(45)
 try {
     while (-not $job.Process.HasExited) {
@@ -32,11 +34,19 @@ try {
                 throw [IO.InvalidDataException]::new('Se leyo un progreso incompleto o fuera de rango.')
             }
             $reads++
+            if ('SessionPath' -in $progress.PSObject.Properties.Name -and
+                -not [string]::IsNullOrWhiteSpace([string]$progress.SessionPath) -and
+                (Test-Path -LiteralPath (Join-Path $progress.SessionPath 'operations.jsonl') -PathType Leaf)) {
+                $formattedLog = Get-FormattedSessionLog -SessionPath $progress.SessionPath
+                if ($formattedLog -match '\[Fixture\]') {
+                    $logReads++
+                }
+            }
         }
     }
     $result = Read-DebloatWorkerResult -Job $job
-    if (-not $result.Success -or $reads -lt 2) {
-        throw [InvalidOperationException]::new("No se verifico lectura concurrente. Lecturas: $reads")
+    if (-not $result.Success -or $reads -lt 2 -or $logReads -lt 2) {
+        throw [InvalidOperationException]::new("No se verifico lectura concurrente. Progreso: $reads; registro: $logReads")
     }
 }
 finally {
@@ -62,4 +72,4 @@ finally {
     if (-not $job.Process.HasExited) { $job.Process.Kill(); $job.Process.WaitForExit() }
     $job.Process.Dispose()
 }
-[pscustomobject]@{ ConcurrentReads = $reads; RejectedEmptySelection = $true; SessionOnlyExecutionPolicy = $true; SystemChangesApplied = $false } | Format-List
+[pscustomobject]@{ ConcurrentReads = $reads; ConcurrentLogReads = $logReads; RejectedEmptySelection = $true; SessionOnlyExecutionPolicy = $true; SystemChangesApplied = $false } | Format-List

@@ -393,6 +393,41 @@ function ConvertTo-DebloatLogDataText {
     return $parts -join '; '
 }
 
+function Read-DebloatSharedTextFile {
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Path
+    )
+
+    $lastError = $null
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            $stream = [System.IO.FileStream]::new(
+                [System.IO.Path]::GetFullPath($Path),
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::Read,
+                ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete)
+            )
+            $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::UTF8)
+            try {
+                return $reader.ReadToEnd()
+            }
+            finally {
+                $reader.Dispose()
+            }
+        }
+        catch [System.IO.IOException] {
+            $lastError = $_.Exception
+            if ($attempt -lt 5) {
+                Start-Sleep -Milliseconds 20
+            }
+        }
+    }
+    throw [System.IO.IOException]::new("No se pudo leer el registro compartido despues de 5 intentos: $Path", $lastError)
+}
+
 function Get-FormattedSessionLog {
     [OutputType([string])]
     param(
@@ -405,9 +440,19 @@ function Get-FormattedSessionLog {
         return 'La sesion no contiene registro de operaciones.'
     }
 
+    $content = Read-DebloatSharedTextFile -Path $logPath
+    $rawLines = @($content -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 250)
     $lines = [System.Collections.Generic.List[string]]::new()
-    foreach ($rawLine in @(Get-Content -LiteralPath $logPath | Select-Object -Last 250)) {
-        $entry = $rawLine | ConvertFrom-Json
+    for ($index = 0; $index -lt $rawLines.Count; $index++) {
+        try {
+            $entry = $rawLines[$index] | ConvertFrom-Json
+        }
+        catch {
+            if ($index -eq $rawLines.Count - 1 -and -not $content.EndsWith("`n")) {
+                break
+            }
+            throw [System.IO.InvalidDataException]::new("El registro contiene una linea JSON invalida: $logPath", $_.Exception)
+        }
         $time = [DateTime]::Parse($entry.TimestampUtc).ToLocalTime().ToString('HH:mm:ss')
         $dataText = ConvertTo-DebloatLogDataText -Data $entry.Data
         $suffix = if ([string]::IsNullOrWhiteSpace($dataText)) { '' } else { " | $dataText" }
@@ -499,9 +544,17 @@ function Start-DebloatWorkerMonitor {
                 $status.Text = [string]$progress.Message
                 if ('SessionPath' -in $progress.PSObject.Properties.Name -and -not [string]::IsNullOrWhiteSpace([string]$progress.SessionPath)) {
                     $state.SessionPath = [string]$progress.SessionPath
-                    $log.Text = "Registro del proceso: $($Job.StandardErrorPath)" + [Environment]::NewLine +
-                        (Get-FormattedSessionLog -SessionPath $state.SessionPath)
-                    $log.ScrollToEnd()
+                    try {
+                        $log.Text = "Registro del proceso: $($Job.StandardErrorPath)" + [Environment]::NewLine +
+                            (Get-FormattedSessionLog -SessionPath $state.SessionPath)
+                        $log.ScrollToEnd()
+                    }
+                    catch [System.IO.IOException] {
+                        $status.Text = 'El registro esta ocupado; se reintentara automaticamente.'
+                    }
+                    catch {
+                        $status.Text = "No se pudo interpretar el registro; se reintentara. $($_.Exception.Message)"
+                    }
                 }
                 if ([int]$progress.Total -gt 0) {
                     $progressBar.IsIndeterminate = $false
