@@ -110,8 +110,7 @@ function New-DebloatRestorePoint {
             New-ItemProperty -LiteralPath $policyPath -Name $policyName -PropertyType DWord -Value $policyValue -Force | Out-Null
         }
         elseif (Test-Path -LiteralPath $policyPath) {
-            $policyKey = Get-Item -LiteralPath $policyPath
-            $policyKey.DeleteValue($policyName, $false)
+            Remove-ItemProperty -LiteralPath $policyPath -Name $policyName -Force
         }
     }
 }
