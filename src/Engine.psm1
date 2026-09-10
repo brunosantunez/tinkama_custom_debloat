@@ -33,6 +33,42 @@ function Get-SelectedCatalogEntries {
     return [object[]]$selected
 }
 
+function Get-DebloatActionCommand {
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject]$Action
+    )
+
+    switch ($Action.Kind) {
+        'Registry' {
+            return @($Action.Registry | ForEach-Object { Get-DebloatRegistryCommand -Operation $_ }) -join '; '
+        }
+        'Packages' {
+            $commands = foreach ($pattern in @($Action.PackagePatterns)) {
+                Get-DebloatPackageRemovalCommand -Pattern $pattern
+            }
+            return @($commands) -join '; '
+        }
+        'Special' {
+            $commands = @{
+                SetCustomPowerPlan = 'powercfg.exe /duplicatescheme SCHEME_MIN; powercfg.exe /setactive <PulpoCustomGuid>'
+                CleanTemporaryFiles = "Remove-Item -LiteralPath '`$env:SystemRoot\Prefetch\*','`$env:SystemRoot\Temp\*','`$env:TEMP\*' -Recurse -Force"
+                DisableHibernation = 'powercfg.exe /hibernate off'
+                DisableReservedStorage = 'Set-WindowsReservedStorageState -State Disabled'
+                RemoveOneDrive = 'OneDriveSetup.exe /uninstall'
+                DisableRecall = "Disable-WindowsOptionalFeature -FeatureName 'Recall' -Online -NoRestart"
+                DisableTelemetryTasks = 'Disable-ScheduledTask -InputObject <tarea de telemetria>'
+                EnableClassicContextMenu = 'reg.exe add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /ve /t REG_SZ /d "" /f'
+            }
+            return [string]$commands[[string]$Action.Handler]
+        }
+        default {
+            return "Tipo de accion no admitido: $($Action.Kind)"
+        }
+    }
+}
+
 function Invoke-DebloatSelection {
     [OutputType([pscustomobject])]
     param(
@@ -77,23 +113,22 @@ function Invoke-DebloatSelection {
             }
             catch {
                 $warningCount++
-                Write-DebloatLog -Context $context -Level Warning -Component 'Progress' -Message 'No se pudo actualizar el progreso; la optimizacion continuara.' -Data @{ ActionId = $action.Id; Error = $_.Exception.Message }
+                $command = "ProgressCallback '$($action.Title)' $current $total '$($context.SessionPath)'"
+                Write-DebloatNotApplied -Context $context -Level Warning -Component 'Progress' -Instruction "Actualizar el progreso para $($action.Title)" -Command $command -Reason $_.Exception.Message -Data @{ ActionId = $action.Id }
             }
             try {
                 $actionWarnings = switch ($action.Kind) {
                     'Registry' { Invoke-DebloatRegistryAction -Context $context -Action $action }
                     'Packages' { Invoke-DebloatPackageAction -Context $context -Action $action }
-                    'Special' {
-                        Invoke-DebloatSpecialAction -Context $context -Action $action | Out-Null
-                        0
-                    }
+                    'Special' { Invoke-DebloatSpecialAction -Context $context -Action $action }
                     default { throw [System.InvalidOperationException]::new("Tipo de accion no admitido: $($action.Kind)") }
                 }
                 $warningCount += [int]$actionWarnings
             }
             catch {
                 $warningCount++
-                Write-DebloatLog -Context $context -Level Warning -Component 'Engine' -Message 'Se omitio una accion y la optimizacion continuara.' -Data @{ ActionId = $action.Id; Title = $action.Title; Error = $_.Exception.Message }
+                $command = Get-DebloatActionCommand -Action $action
+                Write-DebloatNotApplied -Context $context -Level Warning -Component 'Engine' -Instruction $action.Title -Command $command -Reason $_.Exception.Message -Data @{ ActionId = $action.Id; Title = $action.Title }
             }
         }
 
@@ -104,14 +139,16 @@ function Invoke-DebloatSelection {
             }
             catch {
                 $warningCount++
-                Write-DebloatLog -Context $context -Level Warning -Component 'Progress' -Message 'No se pudo actualizar el progreso; la optimizacion continuara.' -Data @{ ServiceId = $service.Id; Error = $_.Exception.Message }
+                $command = "ProgressCallback '$($service.Title)' $current $total '$($context.SessionPath)'"
+                Write-DebloatNotApplied -Context $context -Level Warning -Component 'Progress' -Instruction "Actualizar el progreso para $($service.Title)" -Command $command -Reason $_.Exception.Message -Data @{ ServiceId = $service.Id }
             }
             try {
                 $warningCount += Invoke-DebloatServiceAction -Context $context -ServiceEntry $service
             }
             catch {
                 $warningCount++
-                Write-DebloatLog -Context $context -Level Warning -Component 'Engine' -Message 'Se omitio una accion de servicio y la optimizacion continuara.' -Data @{ ServiceId = $service.Id; Title = $service.Title; Error = $_.Exception.Message }
+                $command = Get-DebloatServiceCommand -Name $service.Pattern -StartupType $service.StartupType
+                Write-DebloatNotApplied -Context $context -Level Warning -Component 'Engine' -Instruction $service.Title -Command $command -Reason $_.Exception.Message -Data @{ ServiceId = $service.Id; Title = $service.Title }
             }
         }
 
@@ -120,16 +157,24 @@ function Invoke-DebloatSelection {
         Complete-DebloatSession -Context $context -Status $completionStatus -ErrorMessage $warningMessage
         $level = if ($warningCount -gt 0) { 'Warning' } else { 'Success' }
         Write-DebloatLog -Context $context -Level $level -Component 'Engine' -Message 'Optimizacion completada.' -Data @{ Actions = $actions.Count; Services = $services.Count; Warnings = $warningCount }
+        $debugReportPath = Save-DebloatDebugReport -SessionPath $context.SessionPath
         return [pscustomobject]@{
             SessionPath = $context.SessionPath
             WarningCount = $warningCount
+            DebugReportPath = $debugReportPath
         }
     }
     catch {
+        $failure = $_
         $_.Exception.Data['SessionPath'] = $context.SessionPath
-        Write-DebloatLog -Context $context -Level Error -Component 'Engine' -Message 'La optimizacion se detuvo por un error.' -Data @{ Error = $_.Exception.Message; ErrorType = $_.Exception.GetType().FullName }
+        $actionIdsLiteral = ConvertTo-DebloatPowerShellLiteral -Value ([string[]]$ActionIds)
+        $serviceIdsLiteral = ConvertTo-DebloatPowerShellLiteral -Value ([string[]]$ServiceIds)
+        $command = "Invoke-DebloatSelection -ActionIds $actionIdsLiteral -ServiceIds $serviceIdsLiteral"
+        Write-DebloatNotApplied -Context $context -Level Error -Component 'Engine' -Instruction 'Completar la seleccion de optimizacion' -Command $command -Reason $_.Exception.Message -Data @{ ErrorType = $_.Exception.GetType().FullName }
         Complete-DebloatSession -Context $context -Status Failed -ErrorMessage $_.Exception.Message
-        throw
+        $debugReportPath = Save-DebloatDebugReport -SessionPath $context.SessionPath
+        $failure.Exception.Data['DebugReportPath'] = $debugReportPath
+        throw $failure
     }
 }
 
@@ -151,11 +196,16 @@ function Restore-LatestDebloatSession {
         Restore-DebloatRegistry -Context $context
         Complete-DebloatSession -Context $context -Status Restored -ErrorMessage ''
         Write-DebloatLog -Context $context -Level Success -Component 'Engine' -Message 'Restauracion interna completada.' -Data @{ ProjectRoot = $ProjectRoot }
+        Save-DebloatDebugReport -SessionPath $context.SessionPath | Out-Null
         return $sessionPath
     }
     catch {
-        Write-DebloatLog -Context $context -Level Error -Component 'Engine' -Message 'La restauracion se detuvo por un error.' -Data @{ Error = $_.Exception.Message; ErrorType = $_.Exception.GetType().FullName }
-        throw
+        $failure = $_
+        Write-DebloatNotApplied -Context $context -Level Error -Component 'Engine' -Instruction 'Restaurar la ultima sesion interna' -Command 'Restore-LatestDebloatSession' -Reason $_.Exception.Message -Data @{ ErrorType = $_.Exception.GetType().FullName }
+        $debugReportPath = Save-DebloatDebugReport -SessionPath $context.SessionPath
+        $failure.Exception.Data['SessionPath'] = $context.SessionPath
+        $failure.Exception.Data['DebugReportPath'] = $debugReportPath
+        throw $failure
     }
 }
 

@@ -69,6 +69,7 @@ function Set-CustomPowerPlan {
 }
 
 function Clear-DebloatTemporaryFiles {
+    [OutputType([int])]
     param(
         [Parameter(Mandatory)]
         [pscustomobject]$Context
@@ -89,7 +90,8 @@ function Clear-DebloatTemporaryFiles {
             throw [System.UnauthorizedAccessException]::new("Ruta de limpieza fuera de alcance: $resolvedPath")
         }
         if (-not (Test-Path -LiteralPath $resolvedPath -PathType Container)) {
-            Write-DebloatLog -Context $Context -Level Info -Component 'Cleanup' -Message 'La carpeta de limpieza no existe.' -Data @{ Path = $resolvedPath }
+            $pathLiteral = ConvertTo-DebloatPowerShellLiteral -Value (Join-Path $resolvedPath '*')
+            Write-DebloatNotApplied -Context $Context -Level Info -Component 'Cleanup' -Instruction "Vaciar la carpeta temporal $resolvedPath" -Command "Remove-Item -LiteralPath $pathLiteral -Recurse -Force" -Reason 'La carpeta de limpieza no existe.' -Data @{ Path = $resolvedPath }
             continue
         }
 
@@ -100,12 +102,15 @@ function Clear-DebloatTemporaryFiles {
             }
             catch {
                 $failures.Add("$($item.FullName): $($_.Exception.Message)")
+                $pathLiteral = ConvertTo-DebloatPowerShellLiteral -Value $item.FullName
+                Write-DebloatNotApplied -Context $Context -Level Warning -Component 'Cleanup' -Instruction "Eliminar el elemento temporal $($item.FullName)" -Command "Remove-Item -LiteralPath $pathLiteral -Recurse -Force" -Reason $_.Exception.Message -Data @{ Path = $item.FullName }
             }
         }
     }
 
     $level = if ($failures.Count -gt 0) { 'Warning' } else { 'Success' }
     Write-DebloatLog -Context $Context -Level $level -Component 'Cleanup' -Message 'Limpieza de temporales finalizada.' -Data @{ DeletedEntries = $deleted; SkippedEntries = $failures.Count; Failures = [string[]]$failures }
+    return $failures.Count
 }
 
 function Disable-DebloatHibernation {
@@ -139,6 +144,63 @@ function Disable-DebloatHibernation {
     Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments '/hibernate off' -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
     $previousState = if ($wasEnabled) { 'Enabled' } else { 'Disabled' }
     Write-DebloatLog -Context $Context -Level Success -Component 'Power' -Message 'Hibernacion desactivada.' -Data @{ PreviousState = $previousState; RegistryValueExisted = $registryValueExists }
+}
+
+function Enable-DebloatClassicContextMenu {
+    [OutputType([int])]
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject]$Context
+    )
+
+    $classId = '{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}'
+    $classPath = "HKCU:\Software\Classes\CLSID\$classId"
+    $path = "HKCU:\Software\Classes\CLSID\$classId\InprocServer32"
+    $command = "reg.exe add `"HKCU\Software\Classes\CLSID\$classId\InprocServer32`" /ve /t REG_SZ /d `"`" /f"
+    $os = Get-CimInstance -ClassName Win32_OperatingSystem
+    if ([int]$os.BuildNumber -lt 22000) {
+        Write-DebloatNotApplied -Context $Context -Level Info -Component 'Explorer' -Instruction 'Habilitar el menu contextual clasico de Windows 11' -Command $command -Reason "El ajuste solo corresponde a Windows 11; build detectado: $($os.BuildNumber)." -Data @{ Build = [int]$os.BuildNumber }
+        return 0
+    }
+
+    $classKeyExisted = Test-Path -LiteralPath $classPath
+    $keyExisted = Test-Path -LiteralPath $path
+    $defaultExisted = $false
+    $defaultType = $null
+    $defaultValue = $null
+    if ($keyExisted) {
+        $key = Get-Item -LiteralPath $path
+        try {
+            if ('' -in $key.GetValueNames()) {
+                $defaultExisted = $true
+                $defaultType = $key.GetValueKind('').ToString()
+                $defaultValue = $key.GetValue('', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+            }
+        }
+        finally {
+            $key.Dispose()
+        }
+    }
+    Save-SpecialSnapshot -Context $Context -Name 'ClassicContextMenu' -Value ([pscustomobject]@{
+        ClassKeyExisted = $classKeyExisted
+        KeyExisted = $keyExisted
+        DefaultExisted = $defaultExisted
+        DefaultType = $defaultType
+        DefaultValue = $defaultValue
+    })
+
+    if (-not $keyExisted) {
+        New-Item -Path $path -Force | Out-Null
+    }
+    $key = Get-Item -LiteralPath $path
+    try {
+        $key.SetValue('', '', [Microsoft.Win32.RegistryValueKind]::String)
+    }
+    finally {
+        $key.Dispose()
+    }
+    Write-DebloatLog -Context $Context -Level Success -Component 'Explorer' -Message 'Menu contextual clasico habilitado; requiere reiniciar el Explorador o la sesion.' -Data @{ Path = $path; Command = $command }
+    return 0
 }
 
 function Disable-DebloatReservedStorage {
@@ -184,7 +246,7 @@ function Remove-DebloatOneDrive {
     )
     $installed = @($installCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }).Count -gt 0
     if (-not $installed) {
-        Write-DebloatLog -Context $Context -Level Info -Component 'OneDrive' -Message 'OneDrive no esta instalado en las ubicaciones admitidas.' -Data @{ Paths = $installCandidates }
+        Write-DebloatNotApplied -Context $Context -Level Info -Component 'OneDrive' -Instruction 'Desinstalar OneDrive mediante su instalador oficial' -Command 'OneDriveSetup.exe /uninstall' -Reason 'OneDrive no esta instalado en las ubicaciones admitidas.' -Data @{ Paths = $installCandidates }
         return
     }
     $setupPath = Get-OneDriveSetupPath
@@ -205,7 +267,7 @@ function Disable-DebloatRecall {
 
     $feature = @(Get-WindowsOptionalFeature -Online | Where-Object FeatureName -eq 'Recall')
     if ($feature.Count -eq 0) {
-        Write-DebloatLog -Context $Context -Level Info -Component 'Recall' -Message 'La caracteristica opcional Recall no existe en esta compilacion.' -Data @{}
+        Write-DebloatNotApplied -Context $Context -Level Info -Component 'Recall' -Instruction 'Deshabilitar la caracteristica opcional Recall' -Command "Disable-WindowsOptionalFeature -FeatureName 'Recall' -Online -NoRestart" -Reason 'La caracteristica opcional Recall no existe en esta compilacion.' -Data @{}
         return
     }
     Save-SpecialSnapshot -Context $Context -Name 'Recall' -Value ([string]$feature[0].State)
@@ -236,7 +298,9 @@ function Disable-DebloatTelemetryTasks {
     foreach ($targetPath in $targetPaths) {
         $task = @($allTasks | Where-Object { "$($_.TaskPath)$($_.TaskName)" -eq $targetPath })
         if ($task.Count -eq 0) {
-            Write-DebloatLog -Context $Context -Level Info -Component 'TelemetryTasks' -Message 'La tarea programada no existe en esta compilacion.' -Data @{ Task = $targetPath }
+            $taskLiteral = ConvertTo-DebloatPowerShellLiteral -Value $targetPath
+            $command = "Get-ScheduledTask | Where-Object { `"`$(`$_.TaskPath)`$(`$_.TaskName)`" -eq $taskLiteral } | Disable-ScheduledTask"
+            Write-DebloatNotApplied -Context $Context -Level Info -Component 'TelemetryTasks' -Instruction "Deshabilitar la tarea programada $targetPath" -Command $command -Reason 'La tarea programada no existe en esta compilacion.' -Data @{ Task = $targetPath }
             continue
         }
         $snapshots.Add([pscustomobject]@{ TaskPath = $task[0].TaskPath; TaskName = $task[0].TaskName; State = [string]$task[0].State })
@@ -263,14 +327,16 @@ function Invoke-DebloatSpecialAction {
 
     switch ($Action.Handler) {
         'SetCustomPowerPlan' { Set-CustomPowerPlan -Context $Context }
-        'CleanTemporaryFiles' { Clear-DebloatTemporaryFiles -Context $Context }
+        'CleanTemporaryFiles' { return (Clear-DebloatTemporaryFiles -Context $Context) }
         'DisableHibernation' { Disable-DebloatHibernation -Context $Context }
         'DisableReservedStorage' { Disable-DebloatReservedStorage -Context $Context }
         'RemoveOneDrive' { Remove-DebloatOneDrive -Context $Context }
         'DisableRecall' { Disable-DebloatRecall -Context $Context }
         'DisableTelemetryTasks' { Disable-DebloatTelemetryTasks -Context $Context }
+        'EnableClassicContextMenu' { return (Enable-DebloatClassicContextMenu -Context $Context) }
         default { throw [System.InvalidOperationException]::new("Handler especial no admitido: $($Action.Handler)") }
     }
+    return 0
 }
 
 function Restore-DebloatSpecialState {
@@ -305,6 +371,52 @@ function Restore-DebloatSpecialState {
                 $state = if ($wasEnabled) { 'on' } else { 'off' }
                 Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/hibernate $state" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
             }
+            'ClassicContextMenu' {
+                $classPath = 'HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}'
+                $path = Join-Path $classPath 'InprocServer32'
+                if (-not [bool]$record.Value.KeyExisted) {
+                    if (Test-Path -LiteralPath $path) {
+                        Remove-Item -LiteralPath $path -Recurse -Force
+                    }
+                    if (-not [bool]$record.Value.ClassKeyExisted -and (Test-Path -LiteralPath $classPath)) {
+                        $classKey = Get-Item -LiteralPath $classPath
+                        try {
+                            $classKeyIsEmpty = $classKey.SubKeyCount -eq 0 -and $classKey.ValueCount -eq 0
+                        }
+                        finally {
+                            $classKey.Dispose()
+                        }
+                        if ($classKeyIsEmpty) {
+                            Remove-Item -LiteralPath $classPath -Force
+                        }
+                    }
+                }
+                else {
+                    if (-not (Test-Path -LiteralPath $path)) {
+                        New-Item -Path $path -Force | Out-Null
+                    }
+                    $key = Get-Item -LiteralPath $path
+                    try {
+                        if ([bool]$record.Value.DefaultExisted) {
+                            $kind = [Microsoft.Win32.RegistryValueKind]::$($record.Value.DefaultType)
+                            $value = switch ([string]$record.Value.DefaultType) {
+                                'Binary' { ,([byte[]]@($record.Value.DefaultValue)) }
+                                'DWord' { [int]$record.Value.DefaultValue }
+                                'QWord' { [long]$record.Value.DefaultValue }
+                                'MultiString' { ,([string[]]@($record.Value.DefaultValue)) }
+                                default { [string]$record.Value.DefaultValue }
+                            }
+                            $key.SetValue('', $value, $kind)
+                        }
+                        else {
+                            $key.DeleteValue('', $false)
+                        }
+                    }
+                    finally {
+                        $key.Dispose()
+                    }
+                }
+            }
             'ReservedStorage' {
                 $state = [string]$record.Value
                 Set-WindowsReservedStorageState -State $state | Out-Null
@@ -326,7 +438,9 @@ function Restore-DebloatSpecialState {
                 foreach ($taskState in @($record.Value)) {
                     $task = @(Get-ScheduledTask | Where-Object { $_.TaskPath -eq $taskState.TaskPath -and $_.TaskName -eq $taskState.TaskName })
                     if ($task.Count -eq 0) {
-                        Write-DebloatLog -Context $Context -Level Warning -Component 'SpecialRestore' -Message 'La tarea de telemetria respaldada ya no existe.' -Data @{ TaskPath = $taskState.TaskPath; TaskName = $taskState.TaskName }
+                        $taskPathLiteral = ConvertTo-DebloatPowerShellLiteral -Value $taskState.TaskPath
+                        $taskNameLiteral = ConvertTo-DebloatPowerShellLiteral -Value $taskState.TaskName
+                        Write-DebloatNotApplied -Context $Context -Level Warning -Component 'SpecialRestore' -Instruction "Restaurar la tarea $($taskState.TaskPath)$($taskState.TaskName)" -Command "Get-ScheduledTask -TaskPath $taskPathLiteral -TaskName $taskNameLiteral | Enable-ScheduledTask" -Reason 'La tarea de telemetria respaldada ya no existe.' -Data @{ TaskPath = $taskState.TaskPath; TaskName = $taskState.TaskName }
                         continue
                     }
                     if ($taskState.State -ne 'Disabled') {

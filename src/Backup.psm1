@@ -102,7 +102,9 @@ function New-DebloatRestorePoint {
         Write-DebloatLog -Context $Context -Level Success -Component 'RestorePoint' -Message 'Punto de restauracion creado.' -Data @{ Description = $Description; Drive = $systemDrive }
     }
     catch {
-        Write-DebloatLog -Context $Context -Level Error -Component 'RestorePoint' -Message 'No se pudo crear el punto de restauracion. No se aplicaran cambios.' -Data @{ Description = $Description; Error = $_.Exception.Message }
+        $descriptionLiteral = ConvertTo-DebloatPowerShellLiteral -Value $Description
+        $command = "Enable-ComputerRestore -Drive '$systemDrive'; Checkpoint-Computer -Description $descriptionLiteral -RestorePointType MODIFY_SETTINGS"
+        Write-DebloatNotApplied -Context $Context -Level Error -Component 'RestorePoint' -Instruction "Crear el punto de restauracion obligatorio $Description" -Command $command -Reason $_.Exception.Message -Data @{ Description = $Description; Drive = $systemDrive }
         throw [System.InvalidOperationException]::new("No se pudo crear el punto de restauracion obligatorio '$Description'. $($_.Exception.Message)", $_.Exception)
     }
     finally {
@@ -121,8 +123,20 @@ function Export-DebloatAppxInventory {
         [pscustomobject]$Context
     )
 
-    $installed = @(Get-AppxPackage -AllUsers | Select-Object Name, PackageFullName, PackageFamilyName, Publisher, InstallLocation)
-    $provisioned = @(Get-AppxProvisionedPackage -Online | Select-Object DisplayName, PackageName, PublisherId, InstallLocation)
+    try {
+        $installed = @(Get-AppxPackage -AllUsers | Select-Object Name, PackageFullName, PackageFamilyName, Publisher, InstallLocation)
+    }
+    catch {
+        Write-DebloatNotApplied -Context $Context -Level Error -Component 'Backup' -Instruction 'Guardar el inventario de paquetes Appx instalados' -Command 'Get-AppxPackage -AllUsers' -Reason $_.Exception.Message -Data @{}
+        throw
+    }
+    try {
+        $provisioned = @(Get-AppxProvisionedPackage -Online | Select-Object DisplayName, PackageName, PublisherId, InstallLocation)
+    }
+    catch {
+        Write-DebloatNotApplied -Context $Context -Level Error -Component 'Backup' -Instruction 'Guardar el inventario de paquetes provisionados' -Command 'Get-AppxProvisionedPackage -Online' -Reason $_.Exception.Message -Data @{}
+        throw
+    }
     $inventory = [ordered]@{
         CapturedUtc = [DateTime]::UtcNow.ToString('o')
         Installed = $installed

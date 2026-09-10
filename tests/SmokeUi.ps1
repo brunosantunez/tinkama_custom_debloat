@@ -35,7 +35,7 @@ $application = [System.Windows.Application]::new()
 $application.ShutdownMode = [System.Windows.ShutdownMode]::OnExplicitShutdown
 $timer = [System.Windows.Threading.DispatcherTimer]::new()
 $timer.Interval = [TimeSpan]::FromMilliseconds(500)
-$testState = @{ Phase = 'Open'; Failure = $null; Deadline = [DateTime]::UtcNow.AddSeconds(90); LiveLogObserved = $false }
+$testState = @{ Phase = 'Open'; Failure = $null; Deadline = [DateTime]::UtcNow.AddSeconds(90); LiveLogObserved = $false; DebugReportObserved = $false }
 $timer.Add_Tick(({
     $windows = @($application.Windows | Where-Object Name -eq 'MainWindow')
     if ($windows.Count -ne 1) { return }
@@ -47,6 +47,9 @@ $timer.Add_Tick(({
         if ($window.Tag.Busy) {
             if ($testState.Phase -eq 'ProgressSuccess' -and $window.FindName('LogTextBox').Text -match 'Live fixture step.*Current=') {
                 $testState.LiveLogObserved = $true
+            }
+            if ($testState.Phase -eq 'ProgressSuccess' -and $window.FindName('DebugTextBox').Text -match 'Instruccion: Ejecutar incidencia de interfaz simulada') {
+                $testState.DebugReportObserved = $true
             }
             return
         }
@@ -91,6 +94,11 @@ $timer.Add_Tick(({
                 if (-not $testState.LiveLogObserved) {
                     throw [InvalidOperationException]::new('La interfaz no mostro el registro mientras el worker estaba activo.')
                 }
+                if (-not $testState.DebugReportObserved -or $window.FindName('DebugTextBox').Text -notmatch 'Comando: Write-ProgressFixture.ps1') {
+                    throw [InvalidOperationException]::new('La interfaz no mostro el informe de depuracion estructurado.')
+                }
+                $window.FindName('MainTabs').SelectedIndex = 5
+                Save-WindowScreenshot -Window $window -Path (Join-Path $artifactRoot 'ui-debug.png')
                 $timer.Stop()
                 $window.Close()
                 return

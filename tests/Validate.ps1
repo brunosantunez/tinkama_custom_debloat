@@ -34,6 +34,16 @@ foreach ($profile in @($catalog.Profiles)) {
     }
 }
 
+$classicMenuAction = @($catalog.Actions | Where-Object Id -eq 'classic_context_menu')
+if ($classicMenuAction.Count -ne 1 -or $classicMenuAction[0].Handler -ne 'EnableClassicContextMenu') {
+    throw [System.IO.InvalidDataException]::new('Falta la accion valida para el menu contextual clasico de Windows 11.')
+}
+foreach ($profile in @($catalog.Profiles)) {
+    if ('classic_context_menu' -notin $profile.ActionIds) {
+        throw [System.IO.InvalidDataException]::new("El perfil $($profile.Id) no incluye el menu contextual clasico.")
+    }
+}
+
 $protectedPackages = @(
     'Microsoft.DesktopAppInstaller', 'Microsoft.SecHealthUI', 'Microsoft.WindowsStore',
     'MicrosoftWindows.Client.CBS', 'MicrosoftWindows.Client.Core'
@@ -53,7 +63,8 @@ $reader = [System.Xml.XmlNodeReader]::new($xaml)
 $window = [Windows.Markup.XamlReader]::Load($reader)
 $requiredControls = @(
     'SettingsPanel', 'AppsPanel', 'ServicesPanel', 'ToolsPanel', 'SelectionText',
-    'StatusText', 'WorkProgress', 'ApplyButton', 'RestoreSettingsButton', 'LogTextBox', 'PrepareScriptsButton'
+    'StatusText', 'WorkProgress', 'ApplyButton', 'RestoreSettingsButton', 'LogTextBox', 'PrepareScriptsButton',
+    'DebugTextBox', 'CopyDebugButton', 'OpenDebugReportButton'
 )
 foreach ($name in $requiredControls) {
     if ($null -eq $window.FindName($name)) {

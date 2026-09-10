@@ -39,6 +39,40 @@ function Assert-PackageIsRemovable {
     }
 }
 
+function Get-DebloatInstalledPackageQueryCommand {
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Pattern
+    )
+
+    $literal = ConvertTo-DebloatPowerShellLiteral -Value $Pattern
+    return "Get-AppxPackage -AllUsers | Where-Object Name -Like $literal"
+}
+
+function Get-DebloatProvisionedPackageQueryCommand {
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Pattern
+    )
+
+    $literal = ConvertTo-DebloatPowerShellLiteral -Value $Pattern
+    return "Get-AppxProvisionedPackage -Online | Where-Object { `$_.DisplayName -like $literal -or `$_.PackageName -like $literal }"
+}
+
+function Get-DebloatPackageRemovalCommand {
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Pattern
+    )
+
+    $installedQuery = Get-DebloatInstalledPackageQueryCommand -Pattern $Pattern
+    $provisionedQuery = Get-DebloatProvisionedPackageQueryCommand -Pattern $Pattern
+    return "$installedQuery | ForEach-Object { Remove-AppxPackage -Package `$_.PackageFullName -AllUsers }; $provisionedQuery | ForEach-Object { Remove-AppxProvisionedPackage -Online -AllUsers -PackageName `$_.PackageName }"
+}
+
 function Remove-DebloatPackagePattern {
     [OutputType([int])]
     param(
@@ -61,18 +95,21 @@ function Remove-DebloatPackagePattern {
     }
     catch {
         $failureCount++
-        Write-DebloatLog -Context $Context -Level Warning -Component 'Packages' -Message 'No se pudieron consultar los paquetes Appx instalados; se continuara con los provisionados.' -Data @{ ActionId = $ActionId; Pattern = $Pattern; Error = $_.Exception.Message }
+        $command = Get-DebloatInstalledPackageQueryCommand -Pattern $Pattern
+        Write-DebloatNotApplied -Context $Context -Level Warning -Component 'Packages' -Instruction "Consultar paquetes Appx instalados que coincidan con $Pattern" -Command $command -Reason $_.Exception.Message -Data @{ ActionId = $ActionId; Pattern = $Pattern }
     }
     try {
         $provisioned = @(Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -like $Pattern -or $_.PackageName -like $Pattern })
     }
     catch {
         $failureCount++
-        Write-DebloatLog -Context $Context -Level Warning -Component 'Packages' -Message 'No se pudieron consultar los paquetes provisionados; se continuara con los instalados.' -Data @{ ActionId = $ActionId; Pattern = $Pattern; Error = $_.Exception.Message }
+        $command = Get-DebloatProvisionedPackageQueryCommand -Pattern $Pattern
+        Write-DebloatNotApplied -Context $Context -Level Warning -Component 'Packages' -Instruction "Consultar paquetes provisionados que coincidan con $Pattern" -Command $command -Reason $_.Exception.Message -Data @{ ActionId = $ActionId; Pattern = $Pattern }
     }
     if ($installed.Count -eq 0 -and $provisioned.Count -eq 0) {
         if ($failureCount -eq 0) {
-            Write-DebloatLog -Context $Context -Level Info -Component 'Packages' -Message 'Paquete no instalado; no requiere cambios.' -Data @{ ActionId = $ActionId; Pattern = $Pattern }
+            $command = Get-DebloatPackageRemovalCommand -Pattern $Pattern
+            Write-DebloatNotApplied -Context $Context -Level Info -Component 'Packages' -Instruction "Eliminar paquetes instalados o provisionados que coincidan con $Pattern" -Command $command -Reason 'No se encontro ningun paquete instalado o provisionado que coincida.' -Data @{ ActionId = $ActionId; Pattern = $Pattern }
         }
         return $failureCount
     }
@@ -86,7 +123,8 @@ function Remove-DebloatPackagePattern {
         }
         catch {
             $failureCount++
-            Write-DebloatLog -Context $Context -Level Warning -Component 'Packages' -Message 'Se omitio un paquete provisionado y la optimizacion continuara.' -Data @{ ActionId = $ActionId; DisplayName = $package.DisplayName; PackageName = $package.PackageName; Pattern = $Pattern; Error = $_.Exception.Message }
+            $packageLiteral = ConvertTo-DebloatPowerShellLiteral -Value $package.PackageName
+            Write-DebloatNotApplied -Context $Context -Level Warning -Component 'Packages' -Instruction "Eliminar paquete provisionado $($package.DisplayName)" -Command "Remove-AppxProvisionedPackage -Online -AllUsers -PackageName $packageLiteral" -Reason $_.Exception.Message -Data @{ ActionId = $ActionId; DisplayName = $package.DisplayName; PackageName = $package.PackageName; Pattern = $Pattern }
         }
     }
 
@@ -99,7 +137,8 @@ function Remove-DebloatPackagePattern {
         }
         catch {
             $failureCount++
-            Write-DebloatLog -Context $Context -Level Warning -Component 'Packages' -Message 'Se omitio un paquete Appx y la optimizacion continuara.' -Data @{ ActionId = $ActionId; Name = $package.Name; PackageFullName = $package.PackageFullName; Pattern = $Pattern; Error = $_.Exception.Message }
+            $packageLiteral = ConvertTo-DebloatPowerShellLiteral -Value $package.PackageFullName
+            Write-DebloatNotApplied -Context $Context -Level Warning -Component 'Packages' -Instruction "Eliminar paquete Appx $($package.Name)" -Command "Remove-AppxPackage -Package $packageLiteral -AllUsers" -Reason $_.Exception.Message -Data @{ ActionId = $ActionId; Name = $package.Name; PackageFullName = $package.PackageFullName; Pattern = $Pattern }
         }
     }
 
@@ -123,7 +162,8 @@ function Invoke-DebloatPackageAction {
         }
         catch {
             $failureCount++
-            Write-DebloatLog -Context $Context -Level Warning -Component 'Packages' -Message 'No se pudo procesar un patron y la optimizacion continuara.' -Data @{ ActionId = $Action.Id; Pattern = $pattern; Error = $_.Exception.Message }
+            $command = "$(Get-DebloatInstalledPackageQueryCommand -Pattern $pattern); $(Get-DebloatProvisionedPackageQueryCommand -Pattern $pattern)"
+            Write-DebloatNotApplied -Context $Context -Level Warning -Component 'Packages' -Instruction "Procesar el patron de paquete $pattern" -Command $command -Reason $_.Exception.Message -Data @{ ActionId = $Action.Id; Pattern = $pattern }
         }
     }
     $level = if ($failureCount -gt 0) { 'Warning' } else { 'Success' }
@@ -131,4 +171,4 @@ function Invoke-DebloatPackageAction {
     return $failureCount
 }
 
-Export-ModuleMember -Function Invoke-DebloatPackageAction
+Export-ModuleMember -Function Get-DebloatInstalledPackageQueryCommand, Get-DebloatProvisionedPackageQueryCommand, Get-DebloatPackageRemovalCommand, Invoke-DebloatPackageAction

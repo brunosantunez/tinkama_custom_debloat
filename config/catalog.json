@@ -275,6 +275,16 @@
       ]
     },
     {
+      "Id": "classic_context_menu",
+      "Title": "Menu contextual clasico de Windows 11",
+      "Description": "Muestra directamente el menu completo de Windows 10 al hacer clic derecho. Solo se aplica en Windows 11.",
+      "Category": "Sistema",
+      "Kind": "Special",
+      "Risk": "Low",
+      "RequiresReboot": true,
+      "Handler": "EnableClassicContextMenu"
+    },
+    {
       "Id": "transparency",
       "Title": "Efectos de transparencia",
       "Description": "Desactiva transparencias de Windows.",
@@ -589,7 +599,7 @@
       "ActionIds": [
         "privacy_general", "privacy_speech_inking", "privacy_diagnostics", "privacy_activity", "privacy_telemetry_tasks", "privacy_app_permissions", "privacy_location",
         "windows_suggestions", "bing_search", "system_notifications", "storage_sense", "shared_experiences", "remote_access", "mobile_devices",
-        "driver_updates", "delivery_optimization", "transparency", "visual_performance", "game_bar", "custom_power_plan", "cleanup_temp",
+        "driver_updates", "delivery_optimization", "classic_context_menu", "transparency", "visual_performance", "game_bar", "custom_power_plan", "cleanup_temp",
         "apps_bing", "apps_3d_office", "apps_games_notes", "apps_maps_feedback_media", "apps_teams"
       ],
       "ServiceIds": [
@@ -603,7 +613,7 @@
       "ActionIds": [
         "privacy_general", "privacy_speech_inking", "privacy_diagnostics", "privacy_activity", "privacy_telemetry_tasks", "privacy_app_permissions", "privacy_background_apps", "privacy_location",
         "windows_suggestions", "bing_search", "system_notifications", "storage_sense", "shared_experiences", "remote_access", "mobile_devices",
-        "driver_updates", "delivery_optimization", "transparency", "visual_performance", "game_bar", "ai_policies", "custom_power_plan", "cleanup_temp",
+        "driver_updates", "delivery_optimization", "classic_context_menu", "transparency", "visual_performance", "game_bar", "ai_policies", "custom_power_plan", "cleanup_temp",
         "disable_hibernation", "disable_reserved_storage", "disable_prefetch", "remove_onedrive", "disable_recall", "apps_bing", "apps_help_start", "apps_3d_office",
         "apps_games_notes", "apps_creative_communication", "apps_maps_feedback_media", "apps_teams", "apps_xbox", "apps_phone", "apps_cortana_copilot", "apps_widgets"
       ],
@@ -620,7 +630,7 @@
       "ActionIds": [
         "privacy_general", "privacy_speech_inking", "privacy_diagnostics", "privacy_activity", "privacy_telemetry_tasks", "privacy_app_permissions", "privacy_background_apps", "privacy_location",
         "windows_suggestions", "bing_search", "system_notifications", "storage_sense", "shared_experiences", "remote_access", "mobile_devices",
-        "driver_updates", "delivery_optimization", "transparency", "visual_performance", "game_bar", "ai_policies", "custom_power_plan", "cleanup_temp",
+        "driver_updates", "delivery_optimization", "classic_context_menu", "transparency", "visual_performance", "game_bar", "ai_policies", "custom_power_plan", "cleanup_temp",
         "disable_hibernation", "disable_reserved_storage", "disable_prefetch", "remove_onedrive", "disable_recall", "apps_bing", "apps_help_start", "apps_3d_office",
         "apps_games_notes", "apps_creative_communication", "apps_maps_feedback_media", "apps_teams", "apps_xbox", "apps_phone", "apps_cortana_copilot", "apps_widgets"
       ],

@@ -14,6 +14,7 @@ Import-Module (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Engine.psm1')
 $sessionPath = "$OutputBasePath.session"
 $context = New-DebloatContext -SessionPath $sessionPath
 Write-DebloatLog -Context $context -Level Info -Component 'Fixture' -Message 'Live log integration started.' -Data @{ Iterations = $Iterations }
+Write-DebloatNotApplied -Context $context -Level Info -Component 'Fixture' -Instruction 'Ejecutar incidencia de interfaz simulada' -Command 'Write-ProgressFixture.ps1' -Reason 'Incidencia simulada para validar la pestana de depuracion.' -Data @{ TestOnly = $true }
 for ($index = 1; $index -le $Iterations; $index++) {
     if ($index % 25 -eq 0) {
         Write-DebloatLog -Context $context -Level Info -Component 'Fixture' -Message 'Live fixture step.' -Data @{ Current = $index; Total = $Iterations }

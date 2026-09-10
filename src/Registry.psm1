@@ -52,6 +52,32 @@ function ConvertTo-RegistryValue {
     }
 }
 
+function Get-DebloatRegistryCommand {
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject]$Operation
+    )
+
+    $typeNames = @{
+        DWord = 'REG_DWORD'
+        QWord = 'REG_QWORD'
+        String = 'REG_SZ'
+        ExpandString = 'REG_EXPAND_SZ'
+        MultiString = 'REG_MULTI_SZ'
+        Binary = 'REG_BINARY'
+    }
+    $data = switch ($Operation.Type) {
+        'Binary' { (@($Operation.Value) | ForEach-Object { ([byte]$_).ToString('x2') }) -join '' }
+        'MultiString' { @($Operation.Value) -join '\0' }
+        default { [string]$Operation.Value }
+    }
+    $registryPath = ([string]$Operation.Path).Replace(':\', '\')
+    $nameArgument = if ($Operation.Name -eq '@Default') { '/ve' } else { "/v `"$($Operation.Name)`"" }
+    $escapedData = $data.Replace('"', '`"')
+    return "reg.exe add `"$registryPath`" $nameArgument /t $($typeNames[[string]$Operation.Type]) /d `"$escapedData`" /f"
+}
+
 function Open-DebloatWritableRegistryKey {
     [OutputType([Microsoft.Win32.RegistryKey])]
     param(
@@ -172,7 +198,9 @@ function Invoke-DebloatRegistryAction {
         }
         catch {
             $failureCount++
-            Write-DebloatLog -Context $Context -Level Warning -Component 'Registry' -Message 'Se omitio un valor de Registro y la optimizacion continuara.' -Data @{ ActionId = $Action.Id; Path = $operation.Path; Name = $operation.Name; Error = $_.Exception.Message }
+            $instruction = "Establecer $($operation.Path)\$($operation.Name) como $($operation.Value) ($($operation.Type))"
+            $command = Get-DebloatRegistryCommand -Operation $operation
+            Write-DebloatNotApplied -Context $Context -Level Warning -Component 'Registry' -Instruction $instruction -Command $command -Reason $_.Exception.Message -Data @{ ActionId = $Action.Id; Path = $operation.Path; Name = $operation.Name; Type = $operation.Type; Value = $operation.Value }
         }
     }
     $level = if ($failureCount -gt 0) { 'Warning' } else { 'Success' }
@@ -221,4 +249,4 @@ function Restore-DebloatRegistry {
     }
 }
 
-Export-ModuleMember -Function Invoke-DebloatRegistryAction, Restore-DebloatRegistry
+Export-ModuleMember -Function Get-DebloatRegistryCommand, Invoke-DebloatRegistryAction, Restore-DebloatRegistry

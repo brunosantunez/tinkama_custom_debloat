@@ -27,6 +27,25 @@ function Get-ServicesByPattern {
     return @(Get-CimInstance -ClassName Win32_Service -Filter "Name LIKE '$wqlPattern'")
 }
 
+function Get-DebloatServiceCommand {
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Name,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Automatic', 'Manual', 'Disabled')]
+        [string]$StartupType
+    )
+
+    $nameLiteral = ConvertTo-DebloatPowerShellLiteral -Value $Name
+    $command = "Set-Service -Name $nameLiteral -StartupType $StartupType"
+    if ($StartupType -eq 'Disabled') {
+        $command += "; Stop-Service -Name $nameLiteral -Force"
+    }
+    return $command
+}
+
 function Save-ServiceSnapshot {
     param(
         [Parameter(Mandatory)]
@@ -64,14 +83,17 @@ function Invoke-DebloatServiceAction {
     )
 
     if ([bool]$ServiceEntry.Protected) {
-        Write-DebloatLog -Context $Context -Level Warning -Component 'Service' -Message 'El servicio esta protegido por el catalogo y se omitio.' -Data @{ ServiceId = $ServiceEntry.Id; Pattern = $ServiceEntry.Pattern }
+        $command = Get-DebloatServiceCommand -Name $ServiceEntry.Pattern -StartupType $ServiceEntry.StartupType
+        Write-DebloatNotApplied -Context $Context -Level Warning -Component 'Service' -Instruction "Configurar el servicio protegido $($ServiceEntry.Title)" -Command $command -Reason 'El servicio esta protegido por el catalogo.' -Data @{ ServiceId = $ServiceEntry.Id; Pattern = $ServiceEntry.Pattern; StartupType = $ServiceEntry.StartupType }
         return 1
     }
 
     if ('TemplateName' -in $ServiceEntry.PSObject.Properties.Name) {
         $templatePath = "HKLM:\SYSTEM\CurrentControlSet\Services\$($ServiceEntry.TemplateName)"
         if (-not (Test-Path -LiteralPath $templatePath)) {
-            Write-DebloatLog -Context $Context -Level Info -Component 'Service' -Message 'La plantilla del servicio por usuario no existe en este equipo.' -Data @{ ServiceId = $ServiceEntry.Id; TemplateName = $ServiceEntry.TemplateName }
+            $startValues = @{ Automatic = 2; Manual = 3; Disabled = 4 }
+            $command = "reg.exe add `"HKLM\SYSTEM\CurrentControlSet\Services\$($ServiceEntry.TemplateName)`" /v `"Start`" /t REG_DWORD /d $($startValues[$ServiceEntry.StartupType]) /f"
+            Write-DebloatNotApplied -Context $Context -Level Info -Component 'Service' -Instruction "Configurar la plantilla del servicio por usuario $($ServiceEntry.Title)" -Command $command -Reason 'La plantilla del servicio por usuario no existe en este equipo.' -Data @{ ServiceId = $ServiceEntry.Id; TemplateName = $ServiceEntry.TemplateName; StartupType = $ServiceEntry.StartupType }
             return 0
         }
         $startValues = @{ Automatic = 2; Manual = 3; Disabled = 4 }
@@ -91,7 +113,8 @@ function Invoke-DebloatServiceAction {
 
     $matches = @(Get-ServicesByPattern -Pattern $ServiceEntry.Pattern)
     if ($matches.Count -eq 0) {
-        Write-DebloatLog -Context $Context -Level Info -Component 'Service' -Message 'El servicio opcional no existe en este equipo.' -Data @{ ServiceId = $ServiceEntry.Id; Pattern = $ServiceEntry.Pattern }
+        $command = Get-DebloatServiceCommand -Name $ServiceEntry.Pattern -StartupType $ServiceEntry.StartupType
+        Write-DebloatNotApplied -Context $Context -Level Info -Component 'Service' -Instruction "Configurar el servicio $($ServiceEntry.Title)" -Command $command -Reason 'El servicio opcional no existe en este equipo.' -Data @{ ServiceId = $ServiceEntry.Id; Pattern = $ServiceEntry.Pattern; StartupType = $ServiceEntry.StartupType }
         return 0
     }
 
@@ -112,7 +135,8 @@ function Invoke-DebloatServiceAction {
         }
         catch {
             $failureCount++
-            Write-DebloatLog -Context $Context -Level Warning -Component 'Service' -Message 'Se omitio un servicio y la optimizacion continuara.' -Data @{ ServiceId = $ServiceEntry.Id; Name = $service.Name; StartupType = $ServiceEntry.StartupType; Error = $_.Exception.Message }
+            $command = Get-DebloatServiceCommand -Name $service.Name -StartupType $ServiceEntry.StartupType
+            Write-DebloatNotApplied -Context $Context -Level Warning -Component 'Service' -Instruction "Configurar el servicio $($service.Name)" -Command $command -Reason $_.Exception.Message -Data @{ ServiceId = $ServiceEntry.Id; Name = $service.Name; StartupType = $ServiceEntry.StartupType }
         }
     }
     return $failureCount
@@ -145,7 +169,9 @@ function Restore-DebloatServices {
 
         $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='$($record.Name)'"
         if ($null -eq $service) {
-            Write-DebloatLog -Context $Context -Level Warning -Component 'ServiceRestore' -Message 'La instancia de servicio respaldada ya no existe.' -Data @{ Name = $record.Name; Reason = 'Los servicios por usuario pueden cambiar de sufijo despues de reiniciar.' }
+            $targetMode = $startModeMap[[string]$record.StartMode]
+            $command = Get-DebloatServiceCommand -Name $record.Name -StartupType $targetMode
+            Write-DebloatNotApplied -Context $Context -Level Warning -Component 'ServiceRestore' -Instruction "Restaurar el servicio $($record.Name)" -Command $command -Reason 'La instancia respaldada ya no existe; los servicios por usuario pueden cambiar de sufijo despues de reiniciar.' -Data @{ Name = $record.Name; StartupType = $targetMode }
             continue
         }
 
@@ -158,4 +184,4 @@ function Restore-DebloatServices {
     }
 }
 
-Export-ModuleMember -Function Invoke-DebloatServiceAction, Restore-DebloatServices
+Export-ModuleMember -Function Get-DebloatServiceCommand, Invoke-DebloatServiceAction, Restore-DebloatServices

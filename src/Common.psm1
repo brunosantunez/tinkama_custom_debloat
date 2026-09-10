@@ -66,6 +66,195 @@ function Write-DebloatLog {
     $entry | ConvertTo-Json -Compress -Depth 8 | Add-Content -LiteralPath $Context.LogPath -Encoding UTF8
 }
 
+function Write-DebloatNotApplied {
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject]$Context,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Info', 'Warning', 'Error')]
+        [string]$Level,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Component,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Instruction,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Command,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Reason,
+
+        [Parameter(Mandatory)]
+        [hashtable]$Data
+    )
+
+    $diagnosticData = @{}
+    foreach ($key in $Data.Keys) {
+        $diagnosticData[$key] = $Data[$key]
+    }
+    $diagnosticData.Outcome = 'NotApplied'
+    $diagnosticData.Instruction = $Instruction
+    $diagnosticData.Command = $Command
+    $diagnosticData.Reason = $Reason
+    Write-DebloatLog -Context $Context -Level $Level -Component $Component -Message $Reason -Data $diagnosticData
+}
+
+function ConvertTo-DebloatPowerShellLiteral {
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowNull()]
+        [AllowEmptyCollection()]
+        [object]$Value
+    )
+
+    if ($null -eq $Value) {
+        return '$null'
+    }
+    if ($Value -is [bool]) {
+        return $(if ($Value) { '$true' } else { '$false' })
+    }
+    if ($Value -is [System.Array]) {
+        $items = @($Value | ForEach-Object { ConvertTo-DebloatPowerShellLiteral -Value $_ })
+        return "@($($items -join ', '))"
+    }
+    if ($Value -is [string] -or $Value -is [char]) {
+        return "'$(([string]$Value).Replace("'", "''"))'"
+    }
+    if ($Value -is [System.IFormattable]) {
+        return $Value.ToString($null, [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+    return "'$(([string]$Value).Replace("'", "''"))'"
+}
+
+function Read-DebloatSharedTextFile {
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Path
+    )
+
+    $lastError = $null
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            $stream = [System.IO.FileStream]::new(
+                [System.IO.Path]::GetFullPath($Path),
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::Read,
+                ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete)
+            )
+            $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::UTF8)
+            try {
+                return $reader.ReadToEnd()
+            }
+            finally {
+                $reader.Dispose()
+            }
+        }
+        catch [System.IO.IOException] {
+            $lastError = $_.Exception
+            if ($attempt -lt 5) {
+                Start-Sleep -Milliseconds 20
+            }
+        }
+    }
+    throw [System.IO.IOException]::new("No se pudo leer el registro compartido despues de 5 intentos: $Path", $lastError)
+}
+
+function Read-DebloatLogEntries {
+    [OutputType([object[]])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$SessionPath
+    )
+
+    $logPath = Join-Path $SessionPath 'operations.jsonl'
+    if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+        return [object[]]@()
+    }
+
+    $content = Read-DebloatSharedTextFile -Path $logPath
+    $rawLines = @($content -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $entries = [System.Collections.Generic.List[object]]::new()
+    for ($index = 0; $index -lt $rawLines.Count; $index++) {
+        try {
+            $entries.Add(($rawLines[$index] | ConvertFrom-Json))
+        }
+        catch {
+            if ($index -eq $rawLines.Count - 1 -and -not $content.EndsWith("`n")) {
+                break
+            }
+            throw [System.IO.InvalidDataException]::new("El registro contiene una linea JSON invalida: $logPath", $_.Exception)
+        }
+    }
+    return [object[]]$entries
+}
+
+function Get-DebloatDebugReport {
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$SessionPath
+    )
+
+    $diagnostics = @(
+        Read-DebloatLogEntries -SessionPath $SessionPath |
+            Where-Object {
+                ($_.Data.PSObject.Properties.Name -contains 'Outcome' -and $_.Data.Outcome -eq 'NotApplied') -or
+                $_.Level -eq 'Error'
+            }
+    )
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('Pulpo Custom Debloat - Informe de depuracion')
+    $lines.Add("Sesion: $SessionPath")
+    $lines.Add("Cambios no efectuados: $($diagnostics.Count)")
+    $lines.Add('')
+
+    foreach ($entry in $diagnostics) {
+        $instruction = if ($entry.Data.PSObject.Properties.Name -contains 'Instruction') { [string]$entry.Data.Instruction } else { [string]$entry.Message }
+        $command = if ($entry.Data.PSObject.Properties.Name -contains 'Command') { [string]$entry.Data.Command } else { 'Comando no registrado' }
+        $reason = if ($entry.Data.PSObject.Properties.Name -contains 'Reason') { [string]$entry.Data.Reason } else { [string]$entry.Message }
+        $time = [DateTime]::Parse($entry.TimestampUtc).ToLocalTime().ToString('yyyy-MM-dd HH:mm:ss')
+        $lines.Add("[$time] [$($entry.Level)] [$($entry.Component)]")
+        $lines.Add("Instruccion: $instruction")
+        $lines.Add("Comando: $command")
+        $lines.Add("Motivo: $reason")
+        $lines.Add('')
+    }
+    if ($diagnostics.Count -eq 0) {
+        $lines.Add('No se registraron cambios sin efectuar.')
+    }
+
+    return [pscustomobject]@{
+        Count = $diagnostics.Count
+        Text = $lines -join [Environment]::NewLine
+    }
+}
+
+function Save-DebloatDebugReport {
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$SessionPath
+    )
+
+    $report = Get-DebloatDebugReport -SessionPath $SessionPath
+    $path = Join-Path $SessionPath 'debug-report.txt'
+    Set-Content -LiteralPath $path -Value $report.Text -Encoding UTF8
+    return $path
+}
+
 function Enter-DebloatJsonLock {
     [OutputType([System.Threading.Mutex])]
     param()
@@ -249,4 +438,4 @@ function Assert-DebloatSupportedSystem {
     }
 }
 
-Export-ModuleMember -Function Test-DebloatAdministrator, Get-DebloatDataRoot, New-DebloatContext, Write-DebloatLog, Save-DebloatJson, Read-DebloatJson, Invoke-DebloatNativeCommand, Assert-DebloatSupportedSystem
+Export-ModuleMember -Function Test-DebloatAdministrator, Get-DebloatDataRoot, New-DebloatContext, Write-DebloatLog, Write-DebloatNotApplied, ConvertTo-DebloatPowerShellLiteral, Read-DebloatSharedTextFile, Read-DebloatLogEntries, Get-DebloatDebugReport, Save-DebloatDebugReport, Save-DebloatJson, Read-DebloatJson, Invoke-DebloatNativeCommand, Assert-DebloatSupportedSystem

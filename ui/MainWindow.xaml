@@ -288,6 +288,29 @@
                     <TextBox x:Name="LogTextBox" Grid.Row="2" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12" Background="#171A1D" Foreground="#DDE2E5" BorderThickness="0" Padding="12" />
                 </Grid>
             </TabItem>
+            <TabItem Header="Depuracion">
+                <Grid Margin="14,18,18,24">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,13">
+                        <Button x:Name="CopyDebugButton">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8C8;" Margin="0,0,8,0" />
+                                <TextBlock Text="Copiar informe" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="OpenDebugReportButton">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE8A7;" Margin="0,0,8,0" />
+                                <TextBlock Text="Abrir informe" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                    <TextBox x:Name="DebugTextBox" Grid.Row="1" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" FontFamily="Consolas" FontSize="12" Background="#171A1D" Foreground="#DDE2E5" BorderThickness="0" Padding="12" />
+                </Grid>
+            </TabItem>
         </TabControl>
 
         <Border Grid.Row="3" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">

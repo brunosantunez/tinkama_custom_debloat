@@ -26,12 +26,19 @@ try {
     $secondWarning = @($entries | Where-Object {
         $_.Level -eq 'Warning' -and 'Pattern' -in $_.Data.PSObject.Properties.Name -and $_.Data.Pattern -eq 'Invalid!Second'
     })
-    if ($warningCount -ne 2 -or $firstWarning.Count -ne 1 -or $secondWarning.Count -ne 1) {
+    if ($warningCount -ne 2 -or
+        $firstWarning.Count -ne 1 -or
+        $secondWarning.Count -ne 1 -or
+        $firstWarning[0].Data.Outcome -ne 'NotApplied' -or
+        [string]::IsNullOrWhiteSpace([string]$firstWarning[0].Data.Instruction) -or
+        [string]::IsNullOrWhiteSpace([string]$firstWarning[0].Data.Command) -or
+        [string]::IsNullOrWhiteSpace([string]$firstWarning[0].Data.Reason)) {
         throw [System.InvalidOperationException]::new('Un patron fallido impidio continuar con el siguiente patron de paquete.')
     }
 
     [pscustomobject]@{
         WarningRecorded = $true
+        DiagnosticDataRecorded = $true
         NextPatternProcessed = $true
         PackagesRemoved = $false
     } | Format-List

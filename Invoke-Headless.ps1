@@ -45,7 +45,7 @@ try {
         -ProgressCallback $progressCallback
 
     $message = if ($execution.WarningCount -gt 0) {
-        "Optimizacion finalizada con $($execution.WarningCount) advertencias. Revisa Restaurar y registro, y reinicia Windows."
+        "Optimizacion finalizada con $($execution.WarningCount) advertencias. Revisa Depuracion y reinicia Windows."
     }
     else {
         'Optimizacion finalizada. Reinicia Windows para completar todos los cambios.'
@@ -53,6 +53,7 @@ try {
     [pscustomobject]@{
         Success = $true
         SessionPath = $execution.SessionPath
+        DebugReportPath = $execution.DebugReportPath
         WarningCount = $execution.WarningCount
         Message = $message
     } | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding UTF8
@@ -62,6 +63,7 @@ catch {
     [pscustomobject]@{
         Success = $false
         SessionPath = $_.Exception.Data['SessionPath']
+        DebugReportPath = $_.Exception.Data['DebugReportPath']
         Message = $_.Exception.Message
         ErrorType = $_.Exception.GetType().FullName
         Details = ($_ | Out-String)

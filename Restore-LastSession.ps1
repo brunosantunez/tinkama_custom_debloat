@@ -16,6 +16,7 @@ try {
     [pscustomobject]@{
         Success = $true
         SessionPath = $restoredPath
+        DebugReportPath = Join-Path $restoredPath 'debug-report.txt'
         Message = 'Se restauraron registro, servicios y plan de energia. Usa Restaurar sistema para recuperar aplicaciones eliminadas.'
     } | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding UTF8
     exit 0
@@ -23,7 +24,8 @@ try {
 catch {
     [pscustomobject]@{
         Success = $false
-        SessionPath = $null
+        SessionPath = $_.Exception.Data['SessionPath']
+        DebugReportPath = $_.Exception.Data['DebugReportPath']
         Message = $_.Exception.Message
         ErrorType = $_.Exception.GetType().FullName
         Details = ($_ | Out-String)

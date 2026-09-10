@@ -393,41 +393,6 @@ function ConvertTo-DebloatLogDataText {
     return $parts -join '; '
 }
 
-function Read-DebloatSharedTextFile {
-    [OutputType([string])]
-    param(
-        [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
-        [string]$Path
-    )
-
-    $lastError = $null
-    for ($attempt = 1; $attempt -le 5; $attempt++) {
-        try {
-            $stream = [System.IO.FileStream]::new(
-                [System.IO.Path]::GetFullPath($Path),
-                [System.IO.FileMode]::Open,
-                [System.IO.FileAccess]::Read,
-                ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete)
-            )
-            $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::UTF8)
-            try {
-                return $reader.ReadToEnd()
-            }
-            finally {
-                $reader.Dispose()
-            }
-        }
-        catch [System.IO.IOException] {
-            $lastError = $_.Exception
-            if ($attempt -lt 5) {
-                Start-Sleep -Milliseconds 20
-            }
-        }
-    }
-    throw [System.IO.IOException]::new("No se pudo leer el registro compartido despues de 5 intentos: $Path", $lastError)
-}
-
 function Get-FormattedSessionLog {
     [OutputType([string])]
     param(
@@ -435,24 +400,13 @@ function Get-FormattedSessionLog {
         [string]$SessionPath
     )
 
-    $logPath = Join-Path $SessionPath 'operations.jsonl'
-    if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+    $entries = @(Read-DebloatLogEntries -SessionPath $SessionPath | Select-Object -Last 250)
+    if ($entries.Count -eq 0) {
         return 'La sesion no contiene registro de operaciones.'
     }
 
-    $content = Read-DebloatSharedTextFile -Path $logPath
-    $rawLines = @($content -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 250)
     $lines = [System.Collections.Generic.List[string]]::new()
-    for ($index = 0; $index -lt $rawLines.Count; $index++) {
-        try {
-            $entry = $rawLines[$index] | ConvertFrom-Json
-        }
-        catch {
-            if ($index -eq $rawLines.Count - 1 -and -not $content.EndsWith("`n")) {
-                break
-            }
-            throw [System.IO.InvalidDataException]::new("El registro contiene una linea JSON invalida: $logPath", $_.Exception)
-        }
+    foreach ($entry in $entries) {
         $time = [DateTime]::Parse($entry.TimestampUtc).ToLocalTime().ToString('HH:mm:ss')
         $dataText = ConvertTo-DebloatLogDataText -Data $entry.Data
         $suffix = if ([string]::IsNullOrWhiteSpace($dataText)) { '' } else { " | $dataText" }
@@ -495,12 +449,16 @@ function Start-DebloatWorkerMonitor {
     $status = $Window.FindName('StatusText')
     $progressBar = $Window.FindName('WorkProgress')
     $log = $Window.FindName('LogTextBox')
+    $debug = $Window.FindName('DebugTextBox')
     $tabs = $Window.FindName('MainTabs')
     $Window.Tag.Busy = $true
     $Window.Tag.LastResult = $null
     $Window.Tag.LastError = ''
+    $Window.Tag.SessionPath = ''
+    $Window.Tag.DebugReportPath = ''
     Set-WindowBusy -Busy $true -Buttons $Buttons -ProgressBar $progressBar
     $log.Text = "Registro del proceso: $($Job.StandardErrorPath)"
+    $debug.Text = 'Esperando incidencias de la sesion activa.'
     $tabs.SelectedIndex = 4
     $state = @{ ProgressFailed = $false; SessionPath = '' }
     $timer = [System.Windows.Threading.DispatcherTimer]::new()
@@ -519,16 +477,24 @@ function Start-DebloatWorkerMonitor {
                     $tabs.SelectedIndex = 4
                 }
                 if ($result.SessionPath) {
+                    $Window.Tag.SessionPath = [string]$result.SessionPath
                     $log.Text = "Registro del proceso: $($Job.StandardErrorPath)" + [Environment]::NewLine +
                         (Get-FormattedSessionLog -SessionPath $result.SessionPath)
+                    $debugReport = Get-DebloatDebugReport -SessionPath $result.SessionPath
+                    $debug.Text = $debugReport.Text
+                    $Window.Tag.DebugReportPath = Join-Path $result.SessionPath 'debug-report.txt'
+                    if ($debugReport.Count -gt 0) {
+                        $status.Text += " Cambios no efectuados: $($debugReport.Count)."
+                        $tabs.SelectedIndex = 5
+                    }
                 }
                 if (-not $result.Success) {
                     $Window.Tag.LastError = $result.Message
                     $log.AppendText([Environment]::NewLine + ($result | ConvertTo-Json -Depth 6))
-                    $tabs.SelectedIndex = 4
+                    $tabs.SelectedIndex = 5
                 }
                 elseif ('WarningCount' -in $result.PSObject.Properties.Name -and [int]$result.WarningCount -gt 0) {
-                    $tabs.SelectedIndex = 4
+                    $tabs.SelectedIndex = 5
                 }
                 $log.ScrollToEnd()
                 $Job.Process.Dispose()
@@ -544,10 +510,13 @@ function Start-DebloatWorkerMonitor {
                 $status.Text = [string]$progress.Message
                 if ('SessionPath' -in $progress.PSObject.Properties.Name -and -not [string]::IsNullOrWhiteSpace([string]$progress.SessionPath)) {
                     $state.SessionPath = [string]$progress.SessionPath
+                    $Window.Tag.SessionPath = $state.SessionPath
                     try {
                         $log.Text = "Registro del proceso: $($Job.StandardErrorPath)" + [Environment]::NewLine +
                             (Get-FormattedSessionLog -SessionPath $state.SessionPath)
+                        $debug.Text = (Get-DebloatDebugReport -SessionPath $state.SessionPath).Text
                         $log.ScrollToEnd()
+                        $debug.ScrollToEnd()
                     }
                     catch [System.IO.IOException] {
                         $status.Text = 'El registro esta ocupado; se reintentara automaticamente.'
@@ -568,7 +537,7 @@ function Start-DebloatWorkerMonitor {
             $Window.Tag.LastError = $_.Exception.Message
             $status.Text = 'Error de seguimiento. Revisa Restaurar y registro.'
             $log.AppendText([Environment]::NewLine + ($_ | Out-String) + $_.ScriptStackTrace)
-            $tabs.SelectedIndex = 4
+            $tabs.SelectedIndex = 5
             if ($Job.Process.HasExited) {
                 $timer.Stop()
                 $Window.Tag.Busy = $false
@@ -596,7 +565,13 @@ function Show-DebloatWindow {
     [xml]$xaml = Get-Content -LiteralPath $xamlPath -Raw
     $reader = [System.Xml.XmlNodeReader]::new($xaml)
     $window = [Windows.Markup.XamlReader]::Load($reader)
-    $window.Tag = [pscustomobject]@{ Busy = $false; LastResult = $null; LastError = '' }
+    $window.Tag = [pscustomobject]@{
+        Busy = $false
+        LastResult = $null
+        LastError = ''
+        SessionPath = ''
+        DebugReportPath = ''
+    }
     $window.Add_Closing({
         param($sender, $eventArgs)
         if ($sender.Tag.Busy) {
@@ -613,6 +588,7 @@ function Show-DebloatWindow {
     $statusText = Get-WindowElement -Window $window -Name 'StatusText'
     $progressBar = Get-WindowElement -Window $window -Name 'WorkProgress'
     $logTextBox = Get-WindowElement -Window $window -Name 'LogTextBox'
+    $debugTextBox = Get-WindowElement -Window $window -Name 'DebugTextBox'
     $systemInfoText = Get-WindowElement -Window $window -Name 'SystemInfoText'
     $safeButton = Get-WindowElement -Window $window -Name 'SafeProfileButton'
     $workshopButton = Get-WindowElement -Window $window -Name 'WorkshopProfileButton'
@@ -624,6 +600,8 @@ function Show-DebloatWindow {
     $systemRestoreButton = Get-WindowElement -Window $window -Name 'OpenSystemRestoreButton'
     $openBackupsButton = Get-WindowElement -Window $window -Name 'OpenBackupsButton'
     $prepareScriptsButton = Get-WindowElement -Window $window -Name 'PrepareScriptsButton'
+    $copyDebugButton = Get-WindowElement -Window $window -Name 'CopyDebugButton'
+    $openDebugReportButton = Get-WindowElement -Window $window -Name 'OpenDebugReportButton'
 
     $os = Get-CimInstance -ClassName Win32_OperatingSystem
     $systemInfoText.Text = "$($os.Caption) | Build $($os.BuildNumber) | $env:COMPUTERNAME"
@@ -685,6 +663,24 @@ function Show-DebloatWindow {
             $logTextBox.Text = ($_ | Out-String) + $_.ScriptStackTrace
             $window.FindName('MainTabs').SelectedIndex = 4
         }
+    }).GetNewClosure())
+
+    $copyDebugButton.Add_Click(({
+        if ([string]::IsNullOrWhiteSpace($debugTextBox.Text)) {
+            $statusText.Text = 'No hay un informe de depuracion para copiar.'
+            return
+        }
+        [System.Windows.Clipboard]::SetText($debugTextBox.Text)
+        $statusText.Text = 'Informe de depuracion copiado al portapapeles.'
+    }).GetNewClosure())
+
+    $openDebugReportButton.Add_Click(({
+        $path = [string]$window.Tag.DebugReportPath
+        if ([string]::IsNullOrWhiteSpace($path) -or -not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            $statusText.Text = 'Todavia no existe un informe de depuracion guardado.'
+            return
+        }
+        Start-Process -FilePath 'notepad.exe' -ArgumentList ('"{0}"' -f $path)
     }).GetNewClosure())
 
     $safeButton.Add_Click(({
@@ -805,4 +801,4 @@ function Show-DebloatWindow {
     $window.ShowDialog() | Out-Null
 }
 
-Export-ModuleMember -Function Show-DebloatWindow, Set-ProfileSelection, Clear-DebloatSelection, Update-SelectionSummary, Get-SelectedIds, Show-SelectionPreview, Show-DebloatConfirmation, Get-FormattedSessionLog, Set-WindowBusy, Start-DebloatWorkerMonitor, Start-DebloatWorkerProcess, Read-DebloatWorkerResult, Enable-DebloatSessionScripts, Get-DebloatDataRoot, Save-DebloatJson, Read-DebloatJson
+Export-ModuleMember -Function Show-DebloatWindow, Set-ProfileSelection, Clear-DebloatSelection, Update-SelectionSummary, Get-SelectedIds, Show-SelectionPreview, Show-DebloatConfirmation, Get-FormattedSessionLog, Get-DebloatDebugReport, Set-WindowBusy, Start-DebloatWorkerMonitor, Start-DebloatWorkerProcess, Read-DebloatWorkerResult, Enable-DebloatSessionScripts, Get-DebloatDataRoot, Save-DebloatJson, Read-DebloatJson
