@@ -20,6 +20,8 @@ $action = [pscustomobject]@{
     Registry = [object[]]@(
         [pscustomobject]@{ Path = $registryPath; Name = 'Number'; Type = 'DWord'; Value = 7 },
         [pscustomobject]@{ Path = $registryPath; Name = '@Default'; Type = 'ExpandString'; Value = '%TEMP%\Pulpo' },
+        [pscustomobject]@{ Path = $registryPath; Name = 'Binary'; Type = 'Binary'; Value = [object[]]@(144, 18, 3, 128, 16, 0, 0, 0) },
+        [pscustomobject]@{ Path = $registryPath; Name = 'Multi'; Type = 'MultiString'; Value = [object[]]@('one', 'two') },
         [pscustomobject]@{ Path = $registryPath; Name = 'Existing'; Type = 'DWord'; Value = 9 }
     )
 }
@@ -36,6 +38,10 @@ try {
             $readKey.GetValue('Number') -ne 7 -or
             $readKey.GetValueKind('') -ne [Microsoft.Win32.RegistryValueKind]::ExpandString -or
             $readKey.GetValue('', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) -ne '%TEMP%\Pulpo' -or
+            $readKey.GetValueKind('Binary') -ne [Microsoft.Win32.RegistryValueKind]::Binary -or
+            ($readKey.GetValue('Binary') -join ',') -ne '144,18,3,128,16,0,0,0' -or
+            $readKey.GetValueKind('Multi') -ne [Microsoft.Win32.RegistryValueKind]::MultiString -or
+            ($readKey.GetValue('Multi') -join ',') -ne 'one,two' -or
             $readKey.GetValueKind('Existing') -ne [Microsoft.Win32.RegistryValueKind]::DWord -or
             $readKey.GetValue('Existing') -ne 9) {
             throw [System.IO.InvalidDataException]::new('Los valores temporales no conservaron su tipo o contenido.')
@@ -61,6 +67,7 @@ try {
     [pscustomobject]@{
         NamedValueWritten = $true
         DefaultValueWritten = $true
+        ArrayValuesWritten = $true
         ExistingValueRestored = $true
         RegistryValuesRestored = $true
     } | Format-List

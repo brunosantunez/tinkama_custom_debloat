@@ -115,17 +115,30 @@ function Disable-DebloatHibernation {
     )
 
     $path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Power'
-    if (-not (Test-Path -LiteralPath $path)) {
-        throw [System.InvalidOperationException]::new('No se puede determinar el estado original de hibernacion: falta Control\\Power.')
+    $registryValueExists = $false
+    $registryValue = $null
+    if (Test-Path -LiteralPath $path) {
+        $key = Get-Item -LiteralPath $path
+        try {
+            if ('HibernateEnabled' -in $key.GetValueNames()) {
+                $registryValueExists = $true
+                $registryValue = [int]$key.GetValue('HibernateEnabled')
+            }
+        }
+        finally {
+            $key.Dispose()
+        }
     }
-    $key = Get-Item -LiteralPath $path
-    if ('HibernateEnabled' -notin $key.GetValueNames()) {
-        throw [System.InvalidOperationException]::new('No se puede determinar el estado original de hibernacion: falta HibernateEnabled.')
-    }
-    $value = [int]$key.GetValue('HibernateEnabled')
-    Save-SpecialSnapshot -Context $Context -Name 'Hibernation' -Value $value
+    $hiberfilePath = Join-Path $env:SystemDrive 'hiberfil.sys'
+    $wasEnabled = if ($registryValueExists) { $registryValue -ne 0 } else { [System.IO.File]::Exists($hiberfilePath) }
+    Save-SpecialSnapshot -Context $Context -Name 'Hibernation' -Value ([pscustomobject]@{
+        WasEnabled = $wasEnabled
+        RegistryValueExisted = $registryValueExists
+        RegistryValue = $registryValue
+    })
     Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments '/hibernate off' -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
-    Write-DebloatLog -Context $Context -Level Success -Component 'Power' -Message 'Hibernacion desactivada.' -Data @{ PreviousValue = $value }
+    $previousState = if ($wasEnabled) { 'Enabled' } else { 'Disabled' }
+    Write-DebloatLog -Context $Context -Level Success -Component 'Power' -Message 'Hibernacion desactivada.' -Data @{ PreviousState = $previousState; RegistryValueExisted = $registryValueExists }
 }
 
 function Disable-DebloatReservedStorage {
@@ -283,7 +296,13 @@ function Restore-DebloatSpecialState {
                 }
             }
             'Hibernation' {
-                $state = if ([int]$record.Value -eq 0) { 'off' } else { 'on' }
+                $wasEnabled = if ($record.Value -is [pscustomobject] -and 'WasEnabled' -in $record.Value.PSObject.Properties.Name) {
+                    [bool]$record.Value.WasEnabled
+                }
+                else {
+                    [int]$record.Value -ne 0
+                }
+                $state = if ($wasEnabled) { 'on' } else { 'off' }
                 Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/hibernate $state" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
             }
             'ReservedStorage' {

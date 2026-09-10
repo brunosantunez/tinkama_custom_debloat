@@ -45,8 +45,8 @@ function ConvertTo-RegistryValue {
     switch ($Type) {
         'DWord' { return [int]$Value }
         'QWord' { return [long]$Value }
-        'Binary' { return [byte[]]@($Value) }
-        'MultiString' { return [string[]]@($Value) }
+        'Binary' { return ,([byte[]]@($Value)) }
+        'MultiString' { return ,([string[]]@($Value)) }
         'String' { return [string]$Value }
         'ExpandString' { return [string]$Value }
     }

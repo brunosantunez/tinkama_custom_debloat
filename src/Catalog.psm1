@@ -116,6 +116,12 @@ function Import-DebloatCatalog {
         if ($service.Risk -notin $allowedRisks) {
             throw [System.IO.InvalidDataException]::new("Risk no admitido en $($service.Id): $($service.Risk)")
         }
+        if ('TemplateName' -in $service.PSObject.Properties.Name) {
+            Assert-RequiredString -Value $service.TemplateName -Field 'TemplateName' -Owner $service.Id
+            if ($service.TemplateName -notmatch '^[A-Za-z0-9._-]+$' -or $service.Pattern -ne "$($service.TemplateName)_*") {
+                throw [System.IO.InvalidDataException]::new("Plantilla de servicio no valida en $($service.Id): $($service.TemplateName)")
+            }
+        }
     }
 
     $profileIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)

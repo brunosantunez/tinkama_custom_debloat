@@ -2,6 +2,7 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1')
+Import-Module (Join-Path $PSScriptRoot 'Registry.psm1')
 
 function Get-ProtectedServiceNames {
     [OutputType([string[]])]
@@ -65,6 +66,27 @@ function Invoke-DebloatServiceAction {
     if ([bool]$ServiceEntry.Protected) {
         Write-DebloatLog -Context $Context -Level Warning -Component 'Service' -Message 'El servicio esta protegido por el catalogo y se omitio.' -Data @{ ServiceId = $ServiceEntry.Id; Pattern = $ServiceEntry.Pattern }
         return 1
+    }
+
+    if ('TemplateName' -in $ServiceEntry.PSObject.Properties.Name) {
+        $templatePath = "HKLM:\SYSTEM\CurrentControlSet\Services\$($ServiceEntry.TemplateName)"
+        if (-not (Test-Path -LiteralPath $templatePath)) {
+            Write-DebloatLog -Context $Context -Level Info -Component 'Service' -Message 'La plantilla del servicio por usuario no existe en este equipo.' -Data @{ ServiceId = $ServiceEntry.Id; TemplateName = $ServiceEntry.TemplateName }
+            return 0
+        }
+        $startValues = @{ Automatic = 2; Manual = 3; Disabled = 4 }
+        $templateAction = [pscustomobject]@{
+            Id = "service_template_$($ServiceEntry.Id)"
+            Title = $ServiceEntry.Title
+            Registry = [object[]]@(
+                [pscustomobject]@{ Path = $templatePath; Name = 'Start'; Type = 'DWord'; Value = $startValues[$ServiceEntry.StartupType] }
+            )
+        }
+        $warningCount = Invoke-DebloatRegistryAction -Context $Context -Action $templateAction
+        if ($warningCount -eq 0) {
+            Write-DebloatLog -Context $Context -Level Success -Component 'Service' -Message 'Plantilla de servicio por usuario configurada; se aplicara completamente al reiniciar sesion.' -Data @{ ServiceId = $ServiceEntry.Id; TemplateName = $ServiceEntry.TemplateName; StartupType = $ServiceEntry.StartupType }
+        }
+        return $warningCount
     }
 
     $matches = @(Get-ServicesByPattern -Pattern $ServiceEntry.Pattern)
