@@ -160,7 +160,14 @@ function Read-DebloatJson {
         if ([string]::IsNullOrWhiteSpace($json)) {
             throw [System.IO.InvalidDataException]::new('El documento esta vacio.')
         }
-        return ConvertFrom-Json -InputObject $json
+        $parsed = ConvertFrom-Json -InputObject $json
+        if ($parsed -is [System.Array]) {
+            foreach ($item in [object[]]$parsed) {
+                Write-Output $item
+            }
+            return
+        }
+        return $parsed
     }
     catch {
         throw [System.IO.InvalidDataException]::new("El archivo JSON no es valido: $Path. $($_.Exception.Message)", $_.Exception)

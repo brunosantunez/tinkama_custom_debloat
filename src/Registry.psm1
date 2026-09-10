@@ -52,6 +52,43 @@ function ConvertTo-RegistryValue {
     }
 }
 
+function Open-DebloatWritableRegistryKey {
+    [OutputType([Microsoft.Win32.RegistryKey])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$Path
+    )
+
+    $pathMatch = [regex]::Match($Path, '^(HKLM|HKCU):\\(.+)$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if (-not $pathMatch.Success) {
+        throw [System.ArgumentException]::new("Ruta de Registro no admitida: $Path")
+    }
+
+    $hive = if ($pathMatch.Groups[1].Value.ToUpperInvariant() -eq 'HKLM') {
+        [Microsoft.Win32.RegistryHive]::LocalMachine
+    }
+    else {
+        [Microsoft.Win32.RegistryHive]::CurrentUser
+    }
+
+    $baseKey = [Microsoft.Win32.RegistryKey]::OpenBaseKey($hive, [Microsoft.Win32.RegistryView]::Default)
+    try {
+        $key = $baseKey.OpenSubKey($pathMatch.Groups[2].Value, $true)
+    }
+    catch [System.UnauthorizedAccessException] {
+        throw [System.UnauthorizedAccessException]::new("No se puede abrir la clave para escritura: $Path. Revisa sus permisos o directivas.", $_.Exception)
+    }
+    finally {
+        $baseKey.Dispose()
+    }
+
+    if ($null -eq $key) {
+        throw [System.IO.DirectoryNotFoundException]::new("No se encontro la clave de Registro despues de crearla: $Path")
+    }
+    return $key
+}
+
 function Save-RegistryValueSnapshot {
     param(
         [Parameter(Mandatory)]
@@ -105,11 +142,16 @@ function Set-DebloatRegistryValue {
         New-Item -Path $Operation.Path -Force | Out-Null
     }
 
-    $key = Get-Item -LiteralPath $Operation.Path
     $valueName = if ($Operation.Name -eq '@Default') { '' } else { [string]$Operation.Name }
     $value = ConvertTo-RegistryValue -Value $Operation.Value -Type $Operation.Type
     $kind = [Microsoft.Win32.RegistryValueKind]::$($Operation.Type)
-    $key.SetValue($valueName, $value, $kind)
+    $key = Open-DebloatWritableRegistryKey -Path $Operation.Path
+    try {
+        $key.SetValue($valueName, $value, $kind)
+    }
+    finally {
+        $key.Dispose()
+    }
     Write-DebloatLog -Context $Context -Level Info -Component 'Registry' -Message 'Valor de Registro aplicado.' -Data @{ ActionId = $ActionId; Path = $Operation.Path; Name = $Operation.Name; Type = $Operation.Type; Value = $Operation.Value }
 }
 
@@ -150,15 +192,20 @@ function Restore-DebloatRegistry {
             New-Item -Path $record.Path -Force | Out-Null
         }
 
-        $key = Get-Item -LiteralPath $record.Path
         $valueName = if ($record.Name -eq '@Default') { '' } else { [string]$record.Name }
-        if ([bool]$record.Exists) {
-            $value = ConvertTo-RegistryValue -Value $record.Value -Type $record.Type
-            $kind = [Microsoft.Win32.RegistryValueKind]::$($record.Type)
-            $key.SetValue($valueName, $value, $kind)
+        $key = Open-DebloatWritableRegistryKey -Path $record.Path
+        try {
+            if ([bool]$record.Exists) {
+                $value = ConvertTo-RegistryValue -Value $record.Value -Type $record.Type
+                $kind = [Microsoft.Win32.RegistryValueKind]::$($record.Type)
+                $key.SetValue($valueName, $value, $kind)
+            }
+            else {
+                $key.DeleteValue($valueName, $false)
+            }
         }
-        else {
-            $key.DeleteValue($valueName, $false)
+        finally {
+            $key.Dispose()
         }
         Write-DebloatLog -Context $Context -Level Success -Component 'RegistryRestore' -Message 'Valor de Registro restaurado.' -Data @{ Path = $record.Path; Name = $record.Name; Existed = [bool]$record.Exists }
     }
