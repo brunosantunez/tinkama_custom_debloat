@@ -1,7 +1,9 @@
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 
-Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Common.psm1')
+Import-Module (Join-Path $PSScriptRoot 'Execution.psm1')
+Import-Module (Join-Path $PSScriptRoot 'Worker.psm1')
 
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
@@ -38,13 +40,13 @@ function New-SectionHeader {
     $titleBlock.Text = $Title
     $titleBlock.FontSize = 17
     $titleBlock.FontWeight = [System.Windows.FontWeights]::SemiBold
-    $titleBlock.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#171A1D')
+    $titleBlock.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#EEEEEE')
     $container.Children.Add($titleBlock) | Out-Null
 
     $separator = [System.Windows.Controls.Border]::new()
     $separator.Height = 1
     $separator.Margin = [System.Windows.Thickness]::new(0, 8, 0, 0)
-    $separator.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#D8DCDF')
+    $separator.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#383838')
     $container.Children.Add($separator) | Out-Null
     return $container
 }
@@ -60,7 +62,7 @@ function New-OptionCheckBox {
     )
 
     $riskLabels = @{ Low = 'BAJO'; Medium = 'MEDIO'; High = 'ALTO'; Critical = 'CRITICO' }
-    $riskColors = @{ Low = '#087E5B'; Medium = '#8A5A00'; High = '#B85C00'; Critical = '#B42318' }
+    $riskColors = @{ Low = '#62D4AA'; Medium = '#E7BF67'; High = '#E7A45F'; Critical = '#F08080' }
 
     $checkBox = [System.Windows.Controls.CheckBox]::new()
     $checkBox.Tag = [string]$Entry.Id
@@ -77,7 +79,7 @@ function New-OptionCheckBox {
     $title.Text = [string]$Entry.Title
     $title.FontSize = 14
     $title.FontWeight = [System.Windows.FontWeights]::SemiBold
-    $title.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#171A1D')
+    $title.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#EEEEEE')
     $titleRow.Children.Add($title) | Out-Null
 
     $risk = [System.Windows.Controls.TextBlock]::new()
@@ -85,7 +87,7 @@ function New-OptionCheckBox {
     $risk.FontSize = 10
     $risk.FontWeight = [System.Windows.FontWeights]::Bold
     $risk.Margin = [System.Windows.Thickness]::new(10, 3, 0, 0)
-    $riskColor = if ($Protected) { '#626970' } else { $riskColors[[string]$Entry.Risk] }
+    $riskColor = if ($Protected) { '#AAAAAA' } else { $riskColors[[string]$Entry.Risk] }
     $risk.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString($riskColor)
     $titleRow.Children.Add($risk) | Out-Null
     $content.Children.Add($titleRow) | Out-Null
@@ -93,7 +95,7 @@ function New-OptionCheckBox {
     $description = [System.Windows.Controls.TextBlock]::new()
     $description.Text = [string]$Entry.Description
     $description.FontSize = 12
-    $description.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#626970')
+    $description.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#AAAAAA')
     $description.TextWrapping = [System.Windows.TextWrapping]::Wrap
     $description.MaxWidth = 820
     $description.Margin = [System.Windows.Thickness]::new(0, 2, 0, 0)
@@ -272,12 +274,14 @@ function Show-SelectionPreview {
     $preview = [System.Windows.Window]::new()
     $preview.Title = 'Previsualizacion'
     $preview.Owner = $Owner
+    $preview.Resources = $Owner.Resources
+    $preview.Foreground = [System.Windows.Media.Brushes]::White
     $preview.Width = 720
     $preview.Height = 560
     $preview.MinWidth = 520
     $preview.MinHeight = 400
     $preview.WindowStartupLocation = [System.Windows.WindowStartupLocation]::CenterOwner
-    $preview.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#F4F5F6')
+    $preview.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#111111')
 
     $grid = [System.Windows.Controls.Grid]::new()
     $grid.Margin = [System.Windows.Thickness]::new(18)
@@ -307,6 +311,55 @@ function Show-SelectionPreview {
     $grid.Children.Add($close) | Out-Null
     $preview.Content = $grid
     $preview.ShowDialog() | Out-Null
+}
+
+function Show-DebloatConfirmation {
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)]
+        [System.Windows.Window]$Owner,
+        [Parameter(Mandatory)]
+        [string]$Title,
+        [Parameter(Mandatory)]
+        [string]$Message
+    )
+
+    $dialog = [System.Windows.Window]::new()
+    $dialog.Name = 'ConfirmationWindow'
+    $dialog.Title = $Title
+    $dialog.Owner = $Owner
+    $dialog.Resources = $Owner.Resources
+    $dialog.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#111111')
+    $dialog.Foreground = [System.Windows.Media.Brushes]::White
+    $dialog.Width = 600
+    $dialog.SizeToContent = [System.Windows.SizeToContent]::Height
+    $dialog.ResizeMode = [System.Windows.ResizeMode]::NoResize
+    $dialog.WindowStartupLocation = [System.Windows.WindowStartupLocation]::CenterOwner
+    $panel = [System.Windows.Controls.StackPanel]::new()
+    $panel.Margin = [System.Windows.Thickness]::new(24)
+    $text = [System.Windows.Controls.TextBlock]::new()
+    $text.Text = $Message
+    $text.TextWrapping = [System.Windows.TextWrapping]::Wrap
+    $text.FontSize = 14
+    $panel.Children.Add($text) | Out-Null
+    $buttons = [System.Windows.Controls.StackPanel]::new()
+    $buttons.Orientation = [System.Windows.Controls.Orientation]::Horizontal
+    $buttons.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Right
+    $buttons.Margin = [System.Windows.Thickness]::new(0, 20, 0, 0)
+    $cancel = [System.Windows.Controls.Button]::new()
+    $cancel.Name = 'CancelButton'
+    $cancel.Content = 'Cancelar'
+    $cancel.IsCancel = $true
+    $confirm = [System.Windows.Controls.Button]::new()
+    $confirm.Name = 'ConfirmButton'
+    $confirm.Content = 'Continuar'
+    $confirm.Style = $Owner.FindResource('PrimaryButton')
+    $confirm.Add_Click({ $dialog.DialogResult = $true }.GetNewClosure())
+    $buttons.Children.Add($cancel) | Out-Null
+    $buttons.Children.Add($confirm) | Out-Null
+    $panel.Children.Add($buttons) | Out-Null
+    $dialog.Content = $panel
+    return $dialog.ShowDialog() -eq $true
 }
 
 function Get-FormattedSessionLog {
@@ -351,6 +404,85 @@ function Set-WindowBusy {
     }
 }
 
+function Start-DebloatWorkerMonitor {
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject]$Job,
+        [Parameter(Mandatory)]
+        [System.Windows.Window]$Window,
+        [Parameter(Mandatory)]
+        [System.Windows.Controls.Button[]]$Buttons
+    )
+
+    $status = $Window.FindName('StatusText')
+    $progressBar = $Window.FindName('WorkProgress')
+    $log = $Window.FindName('LogTextBox')
+    $tabs = $Window.FindName('MainTabs')
+    $Window.Tag.Busy = $true
+    $Window.Tag.LastResult = $null
+    $Window.Tag.LastError = ''
+    Set-WindowBusy -Busy $true -Buttons $Buttons -ProgressBar $progressBar
+    $log.Text = "Registro del proceso: $($Job.StandardErrorPath)"
+    $state = @{ ProgressFailed = $false }
+    $timer = [System.Windows.Threading.DispatcherTimer]::new()
+    $timer.Interval = [TimeSpan]::FromMilliseconds(250)
+    $timer.Add_Tick(({
+        try {
+            if ($Job.Process.HasExited) {
+                $timer.Stop()
+                $Window.Tag.Busy = $false
+                Set-WindowBusy -Busy $false -Buttons $Buttons -ProgressBar $progressBar
+                $result = Read-DebloatWorkerResult -Job $Job
+                $Window.Tag.LastResult = $result
+                $status.Text = $result.Message
+                if ($state.ProgressFailed) {
+                    $status.Text = 'Proceso finalizado con un error de seguimiento. Revisa Restaurar y registro.'
+                    $tabs.SelectedIndex = 4
+                }
+                if ($result.SessionPath) {
+                    $log.AppendText([Environment]::NewLine + (Get-FormattedSessionLog -SessionPath $result.SessionPath))
+                }
+                if (-not $result.Success) {
+                    $Window.Tag.LastError = $result.Message
+                    $log.AppendText([Environment]::NewLine + ($result | ConvertTo-Json -Depth 6))
+                    $tabs.SelectedIndex = 4
+                }
+                $log.ScrollToEnd()
+                $Job.Process.Dispose()
+                return
+            }
+            if (-not $state.ProgressFailed -and (Test-Path -LiteralPath $Job.ProgressPath -PathType Leaf)) {
+                $progress = Read-DebloatJson -Path $Job.ProgressPath
+                foreach ($name in @('Message', 'Current', 'Total')) {
+                    if ($name -notin $progress.PSObject.Properties.Name) {
+                        throw [System.IO.InvalidDataException]::new("El progreso no contiene $name. Archivo: $($Job.ProgressPath)")
+                    }
+                }
+                $status.Text = [string]$progress.Message
+                if ([int]$progress.Total -gt 0) {
+                    $progressBar.IsIndeterminate = $false
+                    $progressBar.Value = [Math]::Round(([int]$progress.Current / [int]$progress.Total) * 100)
+                }
+            }
+        }
+        catch {
+            # Dispatcher exceptions must stay visible without terminating the UI or abandoning a running worker.
+            $state.ProgressFailed = $true
+            $Window.Tag.LastError = $_.Exception.Message
+            $status.Text = 'Error de seguimiento. Revisa Restaurar y registro.'
+            $log.AppendText([Environment]::NewLine + ($_ | Out-String) + $_.ScriptStackTrace)
+            $tabs.SelectedIndex = 4
+            if ($Job.Process.HasExited) {
+                $timer.Stop()
+                $Window.Tag.Busy = $false
+                Set-WindowBusy -Busy $false -Buttons $Buttons -ProgressBar $progressBar
+                $Job.Process.Dispose()
+            }
+        }
+    }).GetNewClosure())
+    $timer.Start()
+}
+
 function Show-DebloatWindow {
     param(
         [Parameter(Mandatory)]
@@ -367,6 +499,14 @@ function Show-DebloatWindow {
     [xml]$xaml = Get-Content -LiteralPath $xamlPath -Raw
     $reader = [System.Xml.XmlNodeReader]::new($xaml)
     $window = [Windows.Markup.XamlReader]::Load($reader)
+    $window.Tag = [pscustomobject]@{ Busy = $false; LastResult = $null; LastError = '' }
+    $window.Add_Closing({
+        param($sender, $eventArgs)
+        if ($sender.Tag.Busy) {
+            $eventArgs.Cancel = $true
+            $sender.FindName('StatusText').Text = 'Hay una operacion activa. Espera su resultado antes de cerrar.'
+        }
+    })
 
     $settingsPanel = Get-WindowElement -Window $window -Name 'SettingsPanel'
     $appsPanel = Get-WindowElement -Window $window -Name 'AppsPanel'
@@ -386,6 +526,7 @@ function Show-DebloatWindow {
     $restoreButton = Get-WindowElement -Window $window -Name 'RestoreSettingsButton'
     $systemRestoreButton = Get-WindowElement -Window $window -Name 'OpenSystemRestoreButton'
     $openBackupsButton = Get-WindowElement -Window $window -Name 'OpenBackupsButton'
+    $prepareScriptsButton = Get-WindowElement -Window $window -Name 'PrepareScriptsButton'
 
     $os = Get-CimInstance -ClassName Win32_OperatingSystem
     $systemInfoText.Text = "$($os.Caption) | Build $($os.BuildNumber) | $env:COMPUTERNAME"
@@ -434,8 +575,20 @@ function Show-DebloatWindow {
 
     $busyButtons = [System.Windows.Controls.Button[]]@(
         $safeButton, $workshopButton, $aggressiveButton, $clearButton,
-        $previewButton, $applyButton, $restoreButton, $systemRestoreButton
+        $previewButton, $applyButton, $restoreButton, $systemRestoreButton, $prepareScriptsButton
     )
+
+    $prepareScriptsButton.Add_Click(({
+        try {
+            $statusText.Text = Enable-DebloatSessionScripts -ProjectRoot $ProjectRoot
+            $logTextBox.Text = Get-ExecutionPolicy -List | Format-Table -AutoSize | Out-String
+        }
+        catch {
+            $statusText.Text = $_.Exception.Message
+            $logTextBox.Text = ($_ | Out-String) + $_.ScriptStackTrace
+            $window.FindName('MainTabs').SelectedIndex = 4
+        }
+    }).GetNewClosure())
 
     $safeButton.Add_Click(({
         Set-ProfileSelection -Catalog $Catalog -ProfileId 'Safe' -ActionCheckBoxes $actionCheckBoxes -ServiceCheckBoxes $serviceCheckBoxes
@@ -486,8 +639,7 @@ function Show-DebloatWindow {
                 $riskMessage = 'Seleccionaste acciones de riesgo alto:' + $separator + $separator +
                     ($names -join $separator) + $suffix + $separator + $separator +
                     'Pueden afectar aplicaciones, impresion, camara, busqueda o juegos. Deseas continuar?'
-                $riskResult = [System.Windows.MessageBox]::Show($window, $riskMessage, 'Confirmar acciones de riesgo', 'YesNo', 'Warning')
-                if ($riskResult -ne 'Yes') {
+                if (-not (Show-DebloatConfirmation -Owner $window -Title 'Confirmar acciones de riesgo' -Message $riskMessage)) {
                     return
                 }
             }
@@ -495,8 +647,7 @@ function Show-DebloatWindow {
             $confirmation = "Se creara un punto de restauracion obligatorio y luego se aplicaran $($actionIds.Count) ajustes y $($serviceIds.Count) servicios." +
                 [Environment]::NewLine + [Environment]::NewLine +
                 'Los temporales eliminados no se pueden recuperar. Continuar?'
-            $confirmResult = [System.Windows.MessageBox]::Show($window, $confirmation, 'Aplicar seleccion', 'YesNo', 'Question')
-            if ($confirmResult -ne 'Yes') {
+            if (-not (Show-DebloatConfirmation -Owner $window -Title 'Aplicar seleccion' -Message $confirmation)) {
                 return
             }
 
@@ -507,48 +658,11 @@ function Show-DebloatWindow {
 
             $workerScript = Join-Path $ProjectRoot 'Invoke-Headless.ps1'
             $workerArguments = @(
-                '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass',
-                '-File', ('"{0}"' -f $workerScript),
                 '-RequestPath', ('"{0}"' -f $requestPath)
             )
-            $worker = Start-Process -FilePath 'powershell.exe' -ArgumentList $workerArguments -WindowStyle Hidden -PassThru -WorkingDirectory $ProjectRoot
-            $resultPath = "$requestPath.result.json"
-            $progressPath = "$requestPath.progress.json"
-            Set-WindowBusy -Busy $true -Buttons $busyButtons -ProgressBar $progressBar
+            $job = Start-DebloatWorkerProcess -ScriptPath $workerScript -ScriptArguments $workerArguments -OutputBasePath $requestPath -WorkingDirectory $ProjectRoot
+            Start-DebloatWorkerMonitor -Job $job -Window $window -Buttons $busyButtons
             $statusText.Text = 'Iniciando optimizacion'
-
-            $timer = [System.Windows.Threading.DispatcherTimer]::new()
-            $timer.Interval = [TimeSpan]::FromMilliseconds(500)
-            $timer.Add_Tick(({
-                if (Test-Path -LiteralPath $progressPath -PathType Leaf) {
-                    $progress = Read-DebloatJson -Path $progressPath
-                    $statusText.Text = [string]$progress.Message
-                    if ([int]$progress.Total -gt 0) {
-                        $progressBar.IsIndeterminate = $false
-                        $progressBar.Value = [Math]::Round(([int]$progress.Current / [int]$progress.Total) * 100)
-                    }
-                }
-                if (-not $worker.HasExited) {
-                    return
-                }
-
-                $timer.Stop()
-                Set-WindowBusy -Busy $false -Buttons $busyButtons -ProgressBar $progressBar
-                if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
-                    $statusText.Text = "El proceso termino con codigo $($worker.ExitCode) sin generar resultado"
-                    [System.Windows.MessageBox]::Show($window, $statusText.Text, 'Error de optimizacion', 'OK', 'Error') | Out-Null
-                    return
-                }
-                $result = Read-DebloatJson -Path $resultPath
-                $statusText.Text = [string]$result.Message
-                if ($result.SessionPath) {
-                    $logTextBox.Text = Get-FormattedSessionLog -SessionPath ([string]$result.SessionPath)
-                    $logTextBox.ScrollToEnd()
-                }
-                $iconName = if ([bool]$result.Success) { 'Information' } else { 'Error' }
-                [System.Windows.MessageBox]::Show($window, [string]$result.Message, 'Pulpo Custom Debloat', 'OK', $iconName) | Out-Null
-            }).GetNewClosure())
-            $timer.Start()
         }
         catch {
             Set-WindowBusy -Busy $false -Buttons $busyButtons -ProgressBar $progressBar
@@ -560,42 +674,18 @@ function Show-DebloatWindow {
     $restoreButton.Add_Click(({
         try {
             $confirmation = 'Se restaurara la ultima sesion disponible. Las aplicaciones eliminadas requieren Restaurar sistema. Continuar?'
-            if ([System.Windows.MessageBox]::Show($window, $confirmation, 'Restaurar ajustes', 'YesNo', 'Question') -ne 'Yes') {
+            if (-not (Show-DebloatConfirmation -Owner $window -Title 'Restaurar ajustes' -Message $confirmation)) {
                 return
             }
-            $resultPath = Join-Path (Get-DebloatDataRoot) 'restore-result.json'
-            if (Test-Path -LiteralPath $resultPath -PathType Leaf) {
-                Remove-Item -LiteralPath $resultPath -Force
-            }
+            $requestsRoot = Join-Path (Get-DebloatDataRoot) 'Requests'
+            New-Item -ItemType Directory -Path $requestsRoot -Force | Out-Null
+            $outputBase = Join-Path $requestsRoot ([Guid]::NewGuid().ToString('N'))
+            $resultPath = "$outputBase.result.json"
             $restoreScript = Join-Path $ProjectRoot 'Restore-LastSession.ps1'
-            $arguments = @('-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f $restoreScript))
-            $worker = Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -WindowStyle Hidden -PassThru -WorkingDirectory $ProjectRoot
-            Set-WindowBusy -Busy $true -Buttons $busyButtons -ProgressBar $progressBar
+            $arguments = @('-ResultPath', ('"{0}"' -f $resultPath))
+            $job = Start-DebloatWorkerProcess -ScriptPath $restoreScript -ScriptArguments $arguments -OutputBasePath $outputBase -WorkingDirectory $ProjectRoot
+            Start-DebloatWorkerMonitor -Job $job -Window $window -Buttons $busyButtons
             $statusText.Text = 'Restaurando ultimo respaldo'
-
-            $timer = [System.Windows.Threading.DispatcherTimer]::new()
-            $timer.Interval = [TimeSpan]::FromMilliseconds(500)
-            $timer.Add_Tick(({
-                if (-not $worker.HasExited) {
-                    return
-                }
-                $timer.Stop()
-                Set-WindowBusy -Busy $false -Buttons $busyButtons -ProgressBar $progressBar
-                if (-not (Test-Path -LiteralPath $resultPath -PathType Leaf)) {
-                    $statusText.Text = "La restauracion termino con codigo $($worker.ExitCode) sin generar resultado"
-                    [System.Windows.MessageBox]::Show($window, $statusText.Text, 'Error de restauracion', 'OK', 'Error') | Out-Null
-                    return
-                }
-                $result = Read-DebloatJson -Path $resultPath
-                $statusText.Text = [string]$result.Message
-                if ($result.SessionPath) {
-                    $logTextBox.Text = Get-FormattedSessionLog -SessionPath ([string]$result.SessionPath)
-                    $logTextBox.ScrollToEnd()
-                }
-                $iconName = if ([bool]$result.Success) { 'Information' } else { 'Error' }
-                [System.Windows.MessageBox]::Show($window, [string]$result.Message, 'Pulpo Custom Debloat', 'OK', $iconName) | Out-Null
-            }).GetNewClosure())
-            $timer.Start()
         }
         catch {
             Set-WindowBusy -Busy $false -Buttons $busyButtons -ProgressBar $progressBar
@@ -618,4 +708,4 @@ function Show-DebloatWindow {
     $window.ShowDialog() | Out-Null
 }
 
-Export-ModuleMember -Function Show-DebloatWindow, Set-ProfileSelection, Clear-DebloatSelection, Update-SelectionSummary, Get-SelectedIds, Show-SelectionPreview, Get-FormattedSessionLog, Set-WindowBusy, Get-DebloatDataRoot, Save-DebloatJson, Read-DebloatJson
+Export-ModuleMember -Function Show-DebloatWindow, Set-ProfileSelection, Clear-DebloatSelection, Update-SelectionSummary, Get-SelectedIds, Show-SelectionPreview, Show-DebloatConfirmation, Get-FormattedSessionLog, Set-WindowBusy, Start-DebloatWorkerMonitor, Start-DebloatWorkerProcess, Read-DebloatWorkerResult, Enable-DebloatSessionScripts, Get-DebloatDataRoot, Save-DebloatJson, Read-DebloatJson

@@ -1,12 +1,12 @@
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 
-Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -Force
-Import-Module (Join-Path $PSScriptRoot 'Backup.psm1') -Force
-Import-Module (Join-Path $PSScriptRoot 'Registry.psm1') -Force
-Import-Module (Join-Path $PSScriptRoot 'Services.psm1') -Force
-Import-Module (Join-Path $PSScriptRoot 'Packages.psm1') -Force
-Import-Module (Join-Path $PSScriptRoot 'SystemTweaks.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'Common.psm1')
+Import-Module (Join-Path $PSScriptRoot 'Backup.psm1')
+Import-Module (Join-Path $PSScriptRoot 'Registry.psm1')
+Import-Module (Join-Path $PSScriptRoot 'Services.psm1')
+Import-Module (Join-Path $PSScriptRoot 'Packages.psm1')
+Import-Module (Join-Path $PSScriptRoot 'SystemTweaks.psm1')
 
 function Get-SelectedCatalogEntries {
     [OutputType([object[]])]
@@ -91,6 +91,7 @@ function Invoke-DebloatSelection {
         return $context.SessionPath
     }
     catch {
+        $_.Exception.Data['SessionPath'] = $context.SessionPath
         Write-DebloatLog -Context $context -Level Error -Component 'Engine' -Message 'La optimizacion se detuvo por un error.' -Data @{ Error = $_.Exception.Message; ErrorType = $_.Exception.GetType().FullName }
         Complete-DebloatSession -Context $context -Status Failed -ErrorMessage $_.Exception.Message
         throw

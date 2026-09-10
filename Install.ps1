@@ -17,6 +17,7 @@ New-Item -ItemType Directory -Path $stagingPath -Force | Out-Null
 
 try {
     Invoke-WebRequest -Uri $archiveUri -UseBasicParsing -OutFile $archivePath
+    Unblock-File -LiteralPath $archivePath
     Expand-Archive -LiteralPath $archivePath -DestinationPath $extractPath -Force
 
     $sourceDirectories = @(Get-ChildItem -LiteralPath $extractPath -Directory)
@@ -60,12 +61,13 @@ try {
     $arguments = @(
         '-NoLogo'
         '-NoProfile'
+        '-STA'
         '-ExecutionPolicy'
         'Bypass'
         '-File'
         ('"{0}"' -f $entryPoint)
     )
-    Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -WorkingDirectory $currentPath
+    Start-Process -FilePath 'powershell.exe' -ArgumentList $arguments -WorkingDirectory $currentPath -WindowStyle Hidden
 }
 finally {
     if (Test-Path -LiteralPath $stagingPath) {

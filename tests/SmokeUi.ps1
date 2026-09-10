@@ -5,51 +5,106 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-Import-Module (Join-Path $projectRoot 'src\Catalog.psm1') -Force
-Import-Module (Join-Path $projectRoot 'src\UserInterface.psm1') -Force
+Import-Module (Join-Path $projectRoot 'src\Catalog.psm1')
+Import-Module (Join-Path $projectRoot 'src\UserInterface.psm1')
 $catalog = Import-DebloatCatalog -Path (Join-Path $projectRoot 'config\catalog.json')
+$artifactRoot = Join-Path $projectRoot 'artifacts'
+New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
+
+function Save-WindowScreenshot {
+    param(
+        [Parameter(Mandatory)]
+        [System.Windows.Window]$Window,
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+    $Window.UpdateLayout()
+    $visual = $Window.Content
+    $bitmap = [System.Windows.Media.Imaging.RenderTargetBitmap]::new(
+        [int]$visual.ActualWidth, [int]$visual.ActualHeight, 96, 96, [System.Windows.Media.PixelFormats]::Pbgra32
+    )
+    $bitmap.Render($visual)
+    $encoder = [System.Windows.Media.Imaging.PngBitmapEncoder]::new()
+    $encoder.Frames.Add([System.Windows.Media.Imaging.BitmapFrame]::Create($bitmap))
+    $stream = [System.IO.File]::Create($Path)
+    try { $encoder.Save($stream) }
+    finally { $stream.Dispose() }
+}
 
 $application = [System.Windows.Application]::new()
 $application.ShutdownMode = [System.Windows.ShutdownMode]::OnExplicitShutdown
 $timer = [System.Windows.Threading.DispatcherTimer]::new()
-$timer.Interval = [TimeSpan]::FromSeconds(1)
+$timer.Interval = [TimeSpan]::FromMilliseconds(500)
+$testState = @{ Phase = 'Open'; Failure = $null; Deadline = [DateTime]::UtcNow.AddSeconds(90) }
 $timer.Add_Tick(({
-    $mainWindow = @($application.Windows | Where-Object Title -eq 'Pulpo Custom Debloat' | Select-Object -First 1)
-    if ($mainWindow.Count -ne 1) {
-        return
-    }
-    $buttonNames = @('WorkshopProfileButton', 'AggressiveProfileButton', 'ClearSelectionButton', 'SafeProfileButton')
-    foreach ($buttonName in $buttonNames) {
-        $button = $mainWindow[0].FindName($buttonName)
-        $button.RaiseEvent([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent))
-    }
-    $mainWindow[0].UpdateLayout()
-    $artifactRoot = Join-Path $projectRoot 'artifacts'
-    New-Item -ItemType Directory -Path $artifactRoot -Force | Out-Null
-    $imagePath = Join-Path $artifactRoot 'ui-smoke.png'
-    $visualRoot = $mainWindow[0].Content
-    $bitmap = [System.Windows.Media.Imaging.RenderTargetBitmap]::new(
-        [int]$visualRoot.ActualWidth,
-        [int]$visualRoot.ActualHeight,
-        96,
-        96,
-        [System.Windows.Media.PixelFormats]::Pbgra32
-    )
-    $bitmap.Render($visualRoot)
-    $encoder = [System.Windows.Media.Imaging.PngBitmapEncoder]::new()
-    $encoder.Frames.Add([System.Windows.Media.Imaging.BitmapFrame]::Create($bitmap))
-    $stream = [System.IO.File]::Create($imagePath)
+    $windows = @($application.Windows | Where-Object Name -eq 'MainWindow')
+    if ($windows.Count -ne 1) { return }
+    $window = $windows[0]
     try {
-        $encoder.Save($stream)
+        if ([DateTime]::UtcNow -gt $testState.Deadline) {
+            throw [TimeoutException]::new("La prueba de interfaz excedio 90 segundos. Fase: $($testState.Phase)")
+        }
+        if ($window.Tag.Busy) { return }
+        if (-not $window.FindName('ApplyButton').IsEnabled) {
+            throw [InvalidOperationException]::new('El boton Aplicar no se recupero al finalizar el worker.')
+        }
+        $outputBase = Join-Path $artifactRoot ([Guid]::NewGuid().ToString('N'))
+        switch ($testState.Phase) {
+            'Open' {
+                foreach ($name in @('WorkshopProfileButton', 'AggressiveProfileButton', 'ClearSelectionButton', 'SafeProfileButton')) {
+                    $window.FindName($name).RaiseEvent([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent))
+                }
+                Save-WindowScreenshot -Window $window -Path (Join-Path $artifactRoot 'ui-smoke.png')
+                $window.Width = 920
+                $window.Height = 650
+                Save-WindowScreenshot -Window $window -Path (Join-Path $artifactRoot 'ui-smoke-compact.png')
+                $window.FindName('MainTabs').SelectedIndex = 3
+                Save-WindowScreenshot -Window $window -Path (Join-Path $artifactRoot 'ui-tools.png')
+                $window.FindName('MainTabs').SelectedIndex = 0
+                $job = Start-DebloatWorkerProcess -ScriptPath (Join-Path $projectRoot 'Invoke-Headless.ps1') -ScriptArguments @('-RequestPath', ('"{0}"' -f $outputBase)) -OutputBasePath $outputBase -WorkingDirectory $projectRoot
+                $testState.Phase = 'RequestFailure'
+            }
+            'RequestFailure' {
+                if ($null -eq $window.Tag.LastResult -or $window.Tag.LastResult.Success -or [string]::IsNullOrWhiteSpace($window.Tag.LastError)) {
+                    throw [InvalidOperationException]::new('La interfaz no mostro el error de solicitud del worker.')
+                }
+                $job = Start-DebloatWorkerProcess -ScriptPath (Join-Path $projectRoot 'Invoke-Headless.ps1') -ScriptArguments @('-RequestPath', '""') -OutputBasePath $outputBase -WorkingDirectory $projectRoot
+                $testState.Phase = 'BootstrapFailure'
+            }
+            'BootstrapFailure' {
+                if ($null -ne $window.Tag.LastResult -or [string]::IsNullOrWhiteSpace($window.Tag.LastError)) {
+                    throw [InvalidOperationException]::new('La interfaz no mostro el fallo anterior a generar resultado.')
+                }
+                Save-WindowScreenshot -Window $window -Path (Join-Path $artifactRoot 'ui-worker-error.png')
+                $job = Start-DebloatWorkerProcess -ScriptPath (Join-Path $PSScriptRoot 'Write-ProgressFixture.ps1') -ScriptArguments @('-OutputBasePath', ('"{0}"' -f $outputBase), '-Iterations', '100') -OutputBasePath $outputBase -WorkingDirectory $projectRoot
+                $testState.Phase = 'ProgressSuccess'
+            }
+            'ProgressSuccess' {
+                if ($null -eq $window.Tag.LastResult -or -not $window.Tag.LastResult.Success -or $window.Tag.LastError) {
+                    throw [InvalidOperationException]::new("La interfaz no completo el seguimiento de progreso: $($window.Tag.LastError)")
+                }
+                $timer.Stop()
+                $window.Close()
+                return
+            }
+        }
+        $testState.Job = $job
+        Start-DebloatWorkerMonitor -Job $job -Window $window -Buttons @($window.FindName('ApplyButton'))
     }
-    finally {
-        $stream.Dispose()
+    catch {
+        $testState.Failure = $_
+        $timer.Stop()
+        if ($window.Tag.Busy -and $testState.ContainsKey('Job') -and -not $testState.Job.Process.HasExited) {
+            $testState.Job.Process.Kill()
+            $testState.Job.Process.WaitForExit()
+        }
+        $window.Tag.Busy = $false
+        $window.Close()
     }
-    $timer.Stop()
-    $mainWindow[0].Close()
 }).GetNewClosure())
 $timer.Start()
 
 Show-DebloatWindow -ProjectRoot $projectRoot -Catalog $catalog
 $application.Shutdown()
-Write-Output 'WPF smoke test completed without applying actions.'
+if ($null -ne $testState.Failure) { throw $testState.Failure }
+Write-Output 'WPF profiles, worker failure recovery and live progress passed without system changes.'

@@ -12,6 +12,7 @@ $projectRoot = $PSScriptRoot
 $resultPath = "$RequestPath.result.json"
 
 try {
+    Import-Module (Join-Path $projectRoot 'src\Common.psm1')
     if (-not (Test-Path -LiteralPath $RequestPath -PathType Leaf)) {
         throw [System.IO.FileNotFoundException]::new("No se encontro la solicitud de trabajo: $RequestPath")
     }
@@ -21,18 +22,18 @@ try {
         throw [System.IO.InvalidDataException]::new('La solicitud no contiene ActionIds y ServiceIds validos.')
     }
 
-    Import-Module (Join-Path $projectRoot 'src\Catalog.psm1') -Force
-    Import-Module (Join-Path $projectRoot 'src\Engine.psm1') -Force
+    Import-Module (Join-Path $projectRoot 'src\Catalog.psm1')
+    Import-Module (Join-Path $projectRoot 'src\Engine.psm1')
 
     $catalog = Import-DebloatCatalog -Path (Join-Path $projectRoot 'config\catalog.json')
     $progressPath = "$RequestPath.progress.json"
     $progressCallback = {
         param([string]$Message, [int]$Current, [int]$Total)
-        [pscustomobject]@{
+        Save-DebloatJson -Path $progressPath -InputObject ([pscustomobject]@{
             Message = $Message
             Current = $Current
             Total = $Total
-        } | ConvertTo-Json | Set-Content -LiteralPath $progressPath -Encoding UTF8
+        })
     }
 
     $sessionPath = Invoke-DebloatSelection `
@@ -52,9 +53,11 @@ try {
 catch {
     [pscustomobject]@{
         Success = $false
-        SessionPath = $null
+        SessionPath = $_.Exception.Data['SessionPath']
         Message = $_.Exception.Message
         ErrorType = $_.Exception.GetType().FullName
+        Details = ($_ | Out-String)
+        ScriptStackTrace = $_.ScriptStackTrace
     } | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding UTF8
     exit 1
 }

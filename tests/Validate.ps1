@@ -23,7 +23,7 @@ if ($parseFailures.Count -gt 0) {
     throw [System.Management.Automation.ParseException]::new("Errores de sintaxis: $($parseFailures -join ' | ')")
 }
 
-Import-Module (Join-Path $projectRoot 'src\Catalog.psm1') -Force
+Import-Module (Join-Path $projectRoot 'src\Catalog.psm1')
 $catalog = Import-DebloatCatalog -Path (Join-Path $projectRoot 'config\catalog.json')
 
 $protectedServices = @($catalog.Services | Where-Object Protected | Select-Object -ExpandProperty Id)
@@ -53,7 +53,7 @@ $reader = [System.Xml.XmlNodeReader]::new($xaml)
 $window = [Windows.Markup.XamlReader]::Load($reader)
 $requiredControls = @(
     'SettingsPanel', 'AppsPanel', 'ServicesPanel', 'ToolsPanel', 'SelectionText',
-    'StatusText', 'WorkProgress', 'ApplyButton', 'RestoreSettingsButton', 'LogTextBox'
+    'StatusText', 'WorkProgress', 'ApplyButton', 'RestoreSettingsButton', 'LogTextBox', 'PrepareScriptsButton'
 )
 foreach ($name in $requiredControls) {
     if ($null -eq $window.FindName($name)) {
@@ -62,8 +62,8 @@ foreach ($name in $requiredControls) {
 }
 $window.Close()
 
-Import-Module (Join-Path $projectRoot 'src\UserInterface.psm1') -Force
-Import-Module (Join-Path $projectRoot 'src\Engine.psm1') -Force
+Import-Module (Join-Path $projectRoot 'src\UserInterface.psm1')
+Import-Module (Join-Path $projectRoot 'src\Engine.psm1')
 
 [pscustomobject]@{
     ScriptsParsed = $scriptFiles.Count

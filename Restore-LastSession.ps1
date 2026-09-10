@@ -1,14 +1,17 @@
 [CmdletBinding()]
-param()
+param(
+    [Parameter(Mandatory)]
+    [ValidateNotNullOrEmpty()]
+    [string]$ResultPath
+)
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = $PSScriptRoot
-$resultPath = Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'PulpoCustomDebloat\restore-result.json'
 
 try {
-    Import-Module (Join-Path $projectRoot 'src\Engine.psm1') -Force
+    Import-Module (Join-Path $projectRoot 'src\Engine.psm1')
     $restoredPath = Restore-LatestDebloatSession -ProjectRoot $projectRoot
     [pscustomobject]@{
         Success = $true
@@ -23,6 +26,8 @@ catch {
         SessionPath = $null
         Message = $_.Exception.Message
         ErrorType = $_.Exception.GetType().FullName
+        Details = ($_ | Out-String)
+        ScriptStackTrace = $_.ScriptStackTrace
     } | ConvertTo-Json | Set-Content -LiteralPath $resultPath -Encoding UTF8
     exit 1
 }

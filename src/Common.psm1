@@ -66,6 +66,28 @@ function Write-DebloatLog {
     $entry | ConvertTo-Json -Compress -Depth 8 | Add-Content -LiteralPath $Context.LogPath -Encoding UTF8
 }
 
+function Enter-DebloatJsonLock {
+    [OutputType([System.Threading.Mutex])]
+    param()
+
+    $mutex = [System.Threading.Mutex]::new($false, 'Local\PulpoCustomDebloat.Json')
+    try {
+        if (-not $mutex.WaitOne(15000)) {
+            throw [System.TimeoutException]::new('No se obtuvo el bloqueo de datos de Pulpo Custom Debloat en 15 segundos.')
+        }
+        return $mutex
+    }
+    catch [System.Threading.AbandonedMutexException] {
+        $mutex.ReleaseMutex()
+        $mutex.Dispose()
+        throw [System.IO.InvalidDataException]::new('El proceso anterior interrumpio una escritura. Revisa los registros antes de volver a aplicar cambios.', $_.Exception)
+    }
+    catch {
+        $mutex.Dispose()
+        throw
+    }
+}
+
 function Save-DebloatJson {
     param(
         [Parameter(Mandatory)]
@@ -82,9 +104,31 @@ function Save-DebloatJson {
         New-Item -ItemType Directory -Path $parent -Force | Out-Null
     }
 
-    $temporaryPath = "$Path.tmp"
-    ConvertTo-Json -InputObject $InputObject -Depth 12 | Set-Content -LiteralPath $temporaryPath -Encoding UTF8
-    Move-Item -LiteralPath $temporaryPath -Destination $Path -Force
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $temporaryPath = '{0}.{1}.tmp' -f $fullPath, [Guid]::NewGuid().ToString('N')
+    $json = ConvertTo-Json -InputObject $InputObject -Depth 12
+    $mutex = Enter-DebloatJsonLock
+    try {
+        [System.IO.File]::WriteAllText($temporaryPath, $json, [System.Text.UTF8Encoding]::new($false))
+        # Publish complete documents; readers must never observe a truncated JSON file.
+        if ([System.IO.File]::Exists($fullPath)) {
+            [System.IO.File]::Replace($temporaryPath, $fullPath, [System.Management.Automation.Language.NullString]::Value)
+        }
+        else {
+            [System.IO.File]::Move($temporaryPath, $fullPath)
+        }
+    }
+    finally {
+        try {
+            if ([System.IO.File]::Exists($temporaryPath)) {
+                [System.IO.File]::Delete($temporaryPath)
+            }
+        }
+        finally {
+            $mutex.ReleaseMutex()
+            $mutex.Dispose()
+        }
+    }
 }
 
 function Read-DebloatJson {
@@ -95,15 +139,35 @@ function Read-DebloatJson {
         [string]$Path
     )
 
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        throw [System.IO.FileNotFoundException]::new("No se encontro el archivo JSON: $Path")
-    }
-
+    $mutex = Enter-DebloatJsonLock
     try {
-        return Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+        if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+            throw [System.IO.FileNotFoundException]::new("No se encontro el archivo JSON: $Path")
+        }
+        $stream = [System.IO.FileStream]::new(
+            [System.IO.Path]::GetFullPath($Path),
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read,
+            ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete)
+        )
+        $reader = [System.IO.StreamReader]::new($stream, [System.Text.Encoding]::UTF8)
+        try {
+            $json = $reader.ReadToEnd()
+        }
+        finally {
+            $reader.Dispose()
+        }
+        if ([string]::IsNullOrWhiteSpace($json)) {
+            throw [System.IO.InvalidDataException]::new('El documento esta vacio.')
+        }
+        return ConvertFrom-Json -InputObject $json
     }
     catch {
         throw [System.IO.InvalidDataException]::new("El archivo JSON no es valido: $Path. $($_.Exception.Message)", $_.Exception)
+    }
+    finally {
+        $mutex.ReleaseMutex()
+        $mutex.Dispose()
     }
 }
 

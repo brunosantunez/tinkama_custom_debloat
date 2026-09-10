@@ -1,23 +1,112 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Name="MainWindow"
         Title="Pulpo Custom Debloat"
         Width="1180"
         Height="760"
         MinWidth="920"
         MinHeight="620"
         WindowStartupLocation="CenterScreen"
-        Background="#F4F5F6"
+        Background="#111111"
+        Foreground="#EEEEEE"
         FontFamily="Segoe UI"
         TextOptions.TextFormattingMode="Display">
     <Window.Resources>
-        <SolidColorBrush x:Key="Ink" Color="#171A1D" />
-        <SolidColorBrush x:Key="Muted" Color="#626970" />
-        <SolidColorBrush x:Key="Surface" Color="#FFFFFF" />
-        <SolidColorBrush x:Key="Line" Color="#D8DCDF" />
+        <SolidColorBrush x:Key="Ink" Color="#EEEEEE" />
+        <SolidColorBrush x:Key="Muted" Color="#AAAAAA" />
+        <SolidColorBrush x:Key="Surface" Color="#1C1C1C" />
+        <SolidColorBrush x:Key="Line" Color="#383838" />
         <SolidColorBrush x:Key="Accent" Color="#087E5B" />
         <SolidColorBrush x:Key="AccentHover" Color="#066A4D" />
-        <SolidColorBrush x:Key="Warning" Color="#B85C00" />
-        <SolidColorBrush x:Key="Danger" Color="#B42318" />
+        <SolidColorBrush x:Key="Warning" Color="#E7BF67" />
+        <SolidColorBrush x:Key="Danger" Color="#F08080" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#1C1C1C" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#111111" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#EEEEEE" />
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource Surface}" />
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Line}" />
+            <Setter Property="CaretBrush" Value="{StaticResource Ink}" />
+        </Style>
+        <Style TargetType="ScrollBar">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Background" Value="#181818" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Track x:Name="PART_Track" IsDirectionReversed="True" Orientation="{TemplateBinding Orientation}"
+                                   Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
+                                   Value="{TemplateBinding Value}" ViewportSize="{TemplateBinding ViewportSize}">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton x:Name="Decrease" Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False" />
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Background="#555555" CornerRadius="3" Margin="3" />
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton x:Name="Increase" Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False" />
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Orientation" Value="Horizontal">
+                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
+                                <Setter TargetName="Decrease" Property="Command" Value="ScrollBar.PageLeftCommand" />
+                                <Setter TargetName="Increase" Property="Command" Value="ScrollBar.PageRightCommand" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="Orientation" Value="Horizontal">
+                    <Setter Property="Height" Value="14" />
+                    <Setter Property="Width" Value="Auto" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource Ink}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="18" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="Box" Width="15" Height="15" VerticalAlignment="Top" Margin="0,3,0,0"
+                                    Background="#252525" BorderBrush="#888888" BorderThickness="1" CornerRadius="2">
+                                <TextBlock x:Name="Mark" Text="&#xE73E;" FontFamily="Segoe MDL2 Assets"
+                                           FontSize="10" Foreground="White" HorizontalAlignment="Center"
+                                           VerticalAlignment="Center" Visibility="Collapsed" />
+                            </Border>
+                            <ContentPresenter Grid.Column="1" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Accent}" />
+                                <Setter TargetName="Mark" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="#62D4AA" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <Style TargetType="Button">
             <Setter Property="MinHeight" Value="36" />
@@ -67,10 +156,30 @@
             <Setter Property="Foreground" Value="{StaticResource Muted}" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}"
+                                BorderBrush="Transparent" BorderThickness="0,0,0,2">
+                            <ContentPresenter ContentSource="Header" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Ink}" />
+                                <Setter TargetName="TabBorder" Property="Background" Value="{StaticResource Surface}" />
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#62D4AA" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
-    <Grid Background="#F4F5F6">
+    <Grid Background="#111111">
         <Grid.RowDefinitions>
             <RowDefinition Height="78" />
             <RowDefinition Height="62" />
@@ -78,7 +187,7 @@
             <RowDefinition Height="68" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="#171A1D" BorderBrush="#087E5B" BorderThickness="0,0,0,4">
+        <Border Grid.Row="0" Background="#141414" BorderBrush="#087E5B" BorderThickness="0,0,0,4">
             <Grid Margin="24,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -100,7 +209,7 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
+        <Border Grid.Row="1" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="0,0,0,1">
             <Grid Margin="24,11">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -120,7 +229,7 @@
             </Grid>
         </Border>
 
-        <TabControl x:Name="MainTabs" Grid.Row="2" Background="#F4F5F6" BorderThickness="0" Padding="16,8,16,0">
+        <TabControl x:Name="MainTabs" Grid.Row="2" Background="#111111" Foreground="{StaticResource Ink}" BorderThickness="0" Padding="16,8,16,0">
             <TabItem Header="Ajustes">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel x:Name="SettingsPanel" Margin="8,12,18,24" />
@@ -139,6 +248,13 @@
             <TabItem Header="Herramientas">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="14,18,18,24">
+                        <TextBlock Text="Ejecucion de scripts" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Ink}" Margin="0,0,0,18" />
+                        <Button x:Name="PrepareScriptsButton" HorizontalAlignment="Left" Margin="0,0,0,18">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE756;" Margin="0,0,8,0" />
+                                <TextBlock Text="Preparar scripts" />
+                            </StackPanel>
+                        </Button>
                         <TextBlock Text="Descargas oficiales" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource Ink}" Margin="0,0,0,18" />
                         <WrapPanel x:Name="ToolsPanel" />
                     </StackPanel>
@@ -174,7 +290,7 @@
             </TabItem>
         </TabControl>
 
-        <Border Grid.Row="3" Background="White" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
+        <Border Grid.Row="3" Background="{StaticResource Surface}" BorderBrush="{StaticResource Line}" BorderThickness="0,1,0,0">
             <Grid Margin="24,12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -182,8 +298,8 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
-                    <TextBlock x:Name="StatusText" Text="Listo para revisar" Foreground="{StaticResource Ink}" FontWeight="SemiBold" />
-                    <ProgressBar x:Name="WorkProgress" Height="4" Margin="0,7,16,0" Minimum="0" Maximum="100" Value="0" Foreground="{StaticResource Accent}" />
+                    <TextBlock x:Name="StatusText" Text="Listo para revisar" Foreground="{StaticResource Ink}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,16,0" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                    <ProgressBar x:Name="WorkProgress" Height="4" Margin="0,7,16,0" Minimum="0" Maximum="100" Value="0" Background="#383838" BorderThickness="0" Foreground="{StaticResource Accent}" />
                 </StackPanel>
                 <Button x:Name="PreviewButton" Grid.Column="1">
                     <StackPanel Orientation="Horizontal">
