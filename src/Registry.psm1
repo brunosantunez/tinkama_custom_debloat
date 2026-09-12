@@ -35,6 +35,8 @@ function ConvertTo-RegistryValue {
     [OutputType([object])]
     param(
         [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [AllowEmptyString()]
         [object]$Value,
 
         [Parameter(Mandatory)]
@@ -174,6 +176,11 @@ function Set-DebloatRegistryValue {
     $key = Open-DebloatWritableRegistryKey -Path $Operation.Path
     try {
         $key.SetValue($valueName, $value, $kind)
+        $actual = $key.GetValue($valueName, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        if ($key.GetValueKind($valueName) -ne $kind -or
+            (ConvertTo-Json -InputObject $actual -Compress) -cne (ConvertTo-Json -InputObject $value -Compress)) {
+            throw [System.IO.IOException]::new("El valor leido no coincide con el solicitado en $($Operation.Path)\$valueName.")
+        }
     }
     finally {
         $key.Dispose()

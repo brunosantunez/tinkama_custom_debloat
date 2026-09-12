@@ -59,7 +59,6 @@ function Get-DebloatActionCommand {
                 RemoveOneDrive = 'OneDriveSetup.exe /uninstall'
                 DisableRecall = "Disable-WindowsOptionalFeature -FeatureName 'Recall' -Online -NoRestart"
                 DisableTelemetryTasks = 'Disable-ScheduledTask -InputObject <tarea de telemetria>'
-                EnableClassicContextMenu = 'reg.exe add "HKCU\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32" /ve /t REG_SZ /d "" /f'
             }
             return [string]$commands[[string]$Action.Handler]
         }

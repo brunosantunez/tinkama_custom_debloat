@@ -36,7 +36,7 @@
     {
       "Id": "privacy_diagnostics",
       "Title": "Comentarios, diagnostico y telemetria",
-      "Description": "Reduce datos de diagnostico al minimo permitido y bloquea solicitudes de comentarios.",
+      "Description": "Limita la telemetria al minimo admitido por la edicion y desactiva informes de errores, comentarios y recopilacion de diagnostico.",
       "Category": "Privacidad",
       "Kind": "Registry",
       "Risk": "Medium",
@@ -47,7 +47,14 @@
         { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection", "Name": "DoNotShowFeedbackNotifications", "Type": "DWord", "Value": 1 },
         { "Path": "HKCU:\\Software\\Microsoft\\Siuf\\Rules", "Name": "NumberOfSIUFInPeriod", "Type": "DWord", "Value": 0 },
         { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection", "Name": "LimitDiagnosticLogCollection", "Type": "DWord", "Value": 1 },
-        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection", "Name": "LimitDumpCollection", "Type": "DWord", "Value": 1 }
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection", "Name": "LimitDumpCollection", "Type": "DWord", "Value": 1 },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection", "Name": "AllowDeviceNameInTelemetry", "Type": "DWord", "Value": 0 },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Error Reporting", "Name": "Disabled", "Type": "DWord", "Value": 1 },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Error Reporting", "Name": "LoggingDisabled", "Type": "DWord", "Value": 1 },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Error Reporting", "Name": "DontSendAdditionalData", "Type": "DWord", "Value": 1 },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\SQMClient\\Windows", "Name": "CEIPEnable", "Type": "DWord", "Value": 0 },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppCompat", "Name": "DisableInventory", "Type": "DWord", "Value": 1 },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppCompat", "Name": "AITEnable", "Type": "DWord", "Value": 0 }
       ]
     },
     {
@@ -97,7 +104,10 @@
         { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy", "Name": "LetAppsAccessMessaging", "Type": "DWord", "Value": 2 },
         { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy", "Name": "LetAppsAccessRadios", "Type": "DWord", "Value": 2 },
         { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy", "Name": "LetAppsSyncWithDevices", "Type": "DWord", "Value": 2 },
-        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy", "Name": "LetAppsAccessDiagnosticInfo", "Type": "DWord", "Value": 2 },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy", "Name": "LetAppsGetDiagnosticInfo", "Type": "DWord", "Value": 2 },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy", "Name": "LetAppsGetDiagnosticInfo_ForceAllowTheseApps", "Type": "MultiString", "Value": [] },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy", "Name": "LetAppsGetDiagnosticInfo_UserInControlOfTheseApps", "Type": "MultiString", "Value": [] },
+        { "Path": "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\appDiagnostics", "Name": "Value", "Type": "String", "Value": "Deny" },
         { "Path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\location", "Name": "Value", "Type": "String", "Value": "Deny" },
         { "Path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\userAccountInformation", "Name": "Value", "Type": "String", "Value": "Deny" },
         { "Path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\contacts", "Name": "Value", "Type": "String", "Value": "Deny" },
@@ -115,13 +125,17 @@
     {
       "Id": "privacy_background_apps",
       "Title": "Aplicaciones en segundo plano",
-      "Description": "Impide que aplicaciones Store se ejecuten en segundo plano.",
+      "Description": "Bloquea segundo plano de aplicaciones Windows y excepciones por aplicacion; desactiva segundo plano y precarga de Edge. Las aplicaciones de escritorio externas administran sus propios procesos.",
       "Category": "Privacidad",
       "Kind": "Registry",
       "Risk": "Medium",
       "RequiresReboot": true,
       "Registry": [
         { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy", "Name": "LetAppsRunInBackground", "Type": "DWord", "Value": 2 },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy", "Name": "LetAppsRunInBackground_ForceAllowTheseApps", "Type": "MultiString", "Value": [] },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\AppPrivacy", "Name": "LetAppsRunInBackground_UserInControlOfTheseApps", "Type": "MultiString", "Value": [] },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge", "Name": "BackgroundModeEnabled", "Type": "DWord", "Value": 0 },
+        { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Edge", "Name": "StartupBoostEnabled", "Type": "DWord", "Value": 0 },
         { "Path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\BackgroundAccessApplications", "Name": "GlobalUserDisabled", "Type": "DWord", "Value": 1 },
         { "Path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Search", "Name": "BackgroundAppGlobalToggle", "Type": "DWord", "Value": 0 }
       ]
@@ -273,16 +287,6 @@
       "Registry": [
         { "Path": "HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows\\DeliveryOptimization", "Name": "DODownloadMode", "Type": "DWord", "Value": 0 }
       ]
-    },
-    {
-      "Id": "classic_context_menu",
-      "Title": "Menu contextual clasico de Windows 11",
-      "Description": "Muestra directamente el menu completo de Windows 10 al hacer clic derecho. Solo se aplica en Windows 11.",
-      "Category": "Sistema",
-      "Kind": "Special",
-      "Risk": "Low",
-      "RequiresReboot": true,
-      "Handler": "EnableClassicContextMenu"
     },
     {
       "Id": "transparency",
@@ -553,10 +557,18 @@
     { "Id": "svc_retail", "Pattern": "RetailDemo", "Title": "Demostracion comercial", "Description": "Modo de exposicion en tiendas.", "StartupType": "Disabled", "Risk": "Low", "Protected": false },
     { "Id": "svc_remote_registry", "Pattern": "RemoteRegistry", "Title": "Registro remoto", "Description": "Edicion remota del Registro.", "StartupType": "Disabled", "Risk": "Low", "Protected": false },
     { "Id": "svc_location", "Pattern": "lfsvc", "Title": "Geolocalizacion", "Description": "Servicio de ubicacion.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false },
-    { "Id": "svc_diagnostics", "Pattern": "diagnosticshub.standardcollector.service", "Title": "Directivas de diagnostico", "Description": "Recopilador de diagnosticos.", "StartupType": "Disabled", "Risk": "Low", "Protected": false },
+    { "Id": "svc_diagnostics", "Pattern": "diagnosticshub.standardcollector.service", "Title": "Recopilador de diagnosticos", "Description": "Recopilacion central de diagnosticos de aplicaciones.", "StartupType": "Disabled", "Risk": "Low", "Protected": false },
     { "Id": "svc_assigned_access", "Pattern": "AssignedAccessManagerSvc", "Title": "Assigned Access Manager", "Description": "Modo kiosco y acceso asignado.", "StartupType": "Disabled", "Risk": "Low", "Protected": false },
     { "Id": "svc_shared_pc", "Pattern": "shpamsvc", "Title": "Shared PC Account Manager", "Description": "Administracion de cuentas de PC compartido.", "StartupType": "Disabled", "Risk": "Low", "Protected": false },
-    { "Id": "svc_data_usage", "Pattern": "DusmSvc", "Title": "Uso de datos", "Description": "Medicion de consumo de red.", "StartupType": "Manual", "Risk": "Low", "Protected": false },
+    { "Id": "svc_data_usage", "Pattern": "DusmSvc", "Title": "Uso de datos", "Description": "Desactiva el monitoreo de consumo de red por aplicacion y sus estadisticas.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false },
+    {"Id": "svc_dps", "Pattern": "DPS", "Title": "Directivas de diagnostico", "Description": "Desactiva deteccion y solucion automatica de problemas.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false},
+    {"Id": "svc_wdi_host", "Pattern": "WdiServiceHost", "Title": "Host del servicio de diagnostico", "Description": "Desactiva ejecucion de diagnosticos en contexto de servicio.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false},
+    {"Id": "svc_wdi_system", "Pattern": "WdiSystemHost", "Title": "Host del sistema de diagnostico", "Description": "Desactiva ejecucion de diagnosticos en contexto del sistema.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false},
+    {"Id": "svc_diagsvc", "Pattern": "diagsvc", "Title": "Ejecucion de diagnostico", "Description": "Desactiva acciones de diagnostico de Windows.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false},
+    {"Id": "svc_wer", "Pattern": "WerSvc", "Title": "Informes de errores de Windows", "Description": "Desactiva informes de fallos y consulta de soluciones.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false},
+    {"Id": "svc_wer_support", "Pattern": "wercplsupport", "Title": "Soporte de informes de problemas", "Description": "Desactiva presentacion y consulta de informes de problemas.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false},
+    {"Id": "svc_performance_logs", "Pattern": "pla", "Title": "Registros y alertas de rendimiento", "Description": "Desactiva recopiladores programados de rendimiento; afecta sesiones de Performance Monitor.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false},
+    {"Id": "svc_pca", "Pattern": "PcaSvc", "Title": "Asistente de compatibilidad", "Description": "Desactiva deteccion automatica de problemas con programas antiguos.", "StartupType": "Disabled", "Risk": "High", "Protected": false},
     { "Id": "svc_sysmain", "Pattern": "SysMain", "Title": "SysMain / Prefetch", "Description": "Precarga de aplicaciones; desactivarla puede perjudicar algunos HDD.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false },
     { "Id": "svc_ai_fabric", "Pattern": "WSAIFabricSvc", "Title": "Windows AI Fabric", "Description": "Servicio de funciones de IA integradas en compilaciones compatibles.", "StartupType": "Disabled", "Risk": "High", "Protected": false },
     { "Id": "svc_notifications", "Pattern": "WpnService", "Title": "Notificaciones push", "Description": "Servicio principal de notificaciones push.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false },
@@ -597,13 +609,13 @@
       "Id": "Safe",
       "Title": "Basica segura",
       "ActionIds": [
-        "privacy_general", "privacy_speech_inking", "privacy_diagnostics", "privacy_activity", "privacy_telemetry_tasks", "privacy_app_permissions", "privacy_location",
+        "privacy_general", "privacy_speech_inking", "privacy_diagnostics", "privacy_activity", "privacy_telemetry_tasks", "privacy_app_permissions", "privacy_background_apps", "privacy_location",
         "windows_suggestions", "bing_search", "system_notifications", "storage_sense", "shared_experiences", "remote_access", "mobile_devices",
-        "driver_updates", "delivery_optimization", "classic_context_menu", "transparency", "visual_performance", "game_bar", "custom_power_plan", "cleanup_temp",
+        "driver_updates", "delivery_optimization", "transparency", "visual_performance", "game_bar", "custom_power_plan", "cleanup_temp",
         "apps_bing", "apps_3d_office", "apps_games_notes", "apps_maps_feedback_media", "apps_teams"
       ],
       "ServiceIds": [
-        "svc_diagtrack", "svc_dmwappush", "svc_maps", "svc_retail", "svc_remote_registry", "svc_location", "svc_diagnostics", "svc_assigned_access",
+        "svc_diagtrack", "svc_dmwappush", "svc_maps", "svc_retail", "svc_remote_registry", "svc_location", "svc_diagnostics", "svc_dps", "svc_wdi_host", "svc_wdi_system", "svc_diagsvc", "svc_wer", "svc_wer_support", "svc_performance_logs", "svc_assigned_access",
         "svc_shared_pc", "svc_data_usage", "svc_notifications", "svc_notifications_user", "svc_routing", "svc_net_tcp", "svc_uev"
       ]
     },
@@ -613,13 +625,13 @@
       "ActionIds": [
         "privacy_general", "privacy_speech_inking", "privacy_diagnostics", "privacy_activity", "privacy_telemetry_tasks", "privacy_app_permissions", "privacy_background_apps", "privacy_location",
         "windows_suggestions", "bing_search", "system_notifications", "storage_sense", "shared_experiences", "remote_access", "mobile_devices",
-        "driver_updates", "delivery_optimization", "classic_context_menu", "transparency", "visual_performance", "game_bar", "ai_policies", "custom_power_plan", "cleanup_temp",
+        "driver_updates", "delivery_optimization", "transparency", "visual_performance", "game_bar", "ai_policies", "custom_power_plan", "cleanup_temp",
         "disable_hibernation", "disable_reserved_storage", "disable_prefetch", "remove_onedrive", "disable_recall", "apps_bing", "apps_help_start", "apps_3d_office",
         "apps_games_notes", "apps_creative_communication", "apps_maps_feedback_media", "apps_teams", "apps_xbox", "apps_phone", "apps_cortana_copilot", "apps_widgets"
       ],
       "ServiceIds": [
-        "svc_diagtrack", "svc_dmwappush", "svc_maps", "svc_retail", "svc_remote_registry", "svc_location", "svc_diagnostics", "svc_assigned_access",
-        "svc_shared_pc", "svc_data_usage", "svc_sysmain", "svc_ai_fabric", "svc_notifications", "svc_notifications_user", "svc_phone", "svc_cdp", "svc_cdp_user",
+        "svc_diagtrack", "svc_dmwappush", "svc_maps", "svc_retail", "svc_remote_registry", "svc_location", "svc_diagnostics", "svc_dps", "svc_wdi_host", "svc_wdi_system", "svc_diagsvc", "svc_wer", "svc_wer_support", "svc_performance_logs", "svc_assigned_access",
+        "svc_shared_pc", "svc_data_usage", "svc_sysmain", "svc_pca", "svc_ai_fabric", "svc_notifications", "svc_notifications_user", "svc_phone", "svc_cdp", "svc_cdp_user",
         "svc_device_flow", "svc_contact_index", "svc_sync", "svc_messaging", "svc_xbl_auth", "svc_xbl_save", "svc_xbox_network", "svc_xbox_accessory",
         "svc_remote_desktop", "svc_routing", "svc_net_tcp", "svc_uev", "svc_dialog_blocking", "svc_appv", "svc_keyboard_filter"
       ]
@@ -630,13 +642,13 @@
       "ActionIds": [
         "privacy_general", "privacy_speech_inking", "privacy_diagnostics", "privacy_activity", "privacy_telemetry_tasks", "privacy_app_permissions", "privacy_background_apps", "privacy_location",
         "windows_suggestions", "bing_search", "system_notifications", "storage_sense", "shared_experiences", "remote_access", "mobile_devices",
-        "driver_updates", "delivery_optimization", "classic_context_menu", "transparency", "visual_performance", "game_bar", "ai_policies", "custom_power_plan", "cleanup_temp",
+        "driver_updates", "delivery_optimization", "transparency", "visual_performance", "game_bar", "ai_policies", "custom_power_plan", "cleanup_temp",
         "disable_hibernation", "disable_reserved_storage", "disable_prefetch", "remove_onedrive", "disable_recall", "apps_bing", "apps_help_start", "apps_3d_office",
         "apps_games_notes", "apps_creative_communication", "apps_maps_feedback_media", "apps_teams", "apps_xbox", "apps_phone", "apps_cortana_copilot", "apps_widgets"
       ],
       "ServiceIds": [
-        "svc_diagtrack", "svc_dmwappush", "svc_maps", "svc_retail", "svc_remote_registry", "svc_location", "svc_diagnostics", "svc_assigned_access",
-        "svc_shared_pc", "svc_data_usage", "svc_sysmain", "svc_ai_fabric", "svc_notifications", "svc_notifications_user", "svc_phone", "svc_cdp", "svc_cdp_user",
+        "svc_diagtrack", "svc_dmwappush", "svc_maps", "svc_retail", "svc_remote_registry", "svc_location", "svc_diagnostics", "svc_dps", "svc_wdi_host", "svc_wdi_system", "svc_diagsvc", "svc_wer", "svc_wer_support", "svc_performance_logs", "svc_assigned_access",
+        "svc_shared_pc", "svc_data_usage", "svc_sysmain", "svc_pca", "svc_ai_fabric", "svc_notifications", "svc_notifications_user", "svc_phone", "svc_cdp", "svc_cdp_user",
         "svc_device_flow", "svc_contact_index", "svc_sync", "svc_messaging", "svc_xbl_auth", "svc_xbl_save", "svc_xbox_network", "svc_xbox_accessory",
         "svc_remote_desktop", "svc_routing", "svc_net_tcp", "svc_uev", "svc_dialog_blocking", "svc_appv", "svc_keyboard_filter", "svc_open_ssh",
         "svc_game_input", "svc_camera", "svc_search", "svc_print", "svc_shared_access", "svc_edge_update", "svc_edge_update_machine", "svc_mt_agent", "svc_mt_scheduler"

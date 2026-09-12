@@ -146,63 +146,6 @@ function Disable-DebloatHibernation {
     Write-DebloatLog -Context $Context -Level Success -Component 'Power' -Message 'Hibernacion desactivada.' -Data @{ PreviousState = $previousState; RegistryValueExisted = $registryValueExists }
 }
 
-function Enable-DebloatClassicContextMenu {
-    [OutputType([int])]
-    param(
-        [Parameter(Mandatory)]
-        [pscustomobject]$Context
-    )
-
-    $classId = '{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}'
-    $classPath = "HKCU:\Software\Classes\CLSID\$classId"
-    $path = "HKCU:\Software\Classes\CLSID\$classId\InprocServer32"
-    $command = "reg.exe add `"HKCU\Software\Classes\CLSID\$classId\InprocServer32`" /ve /t REG_SZ /d `"`" /f"
-    $os = Get-CimInstance -ClassName Win32_OperatingSystem
-    if ([int]$os.BuildNumber -lt 22000) {
-        Write-DebloatNotApplied -Context $Context -Level Info -Component 'Explorer' -Instruction 'Habilitar el menu contextual clasico de Windows 11' -Command $command -Reason "El ajuste solo corresponde a Windows 11; build detectado: $($os.BuildNumber)." -Data @{ Build = [int]$os.BuildNumber }
-        return 0
-    }
-
-    $classKeyExisted = Test-Path -LiteralPath $classPath
-    $keyExisted = Test-Path -LiteralPath $path
-    $defaultExisted = $false
-    $defaultType = $null
-    $defaultValue = $null
-    if ($keyExisted) {
-        $key = Get-Item -LiteralPath $path
-        try {
-            if ('' -in $key.GetValueNames()) {
-                $defaultExisted = $true
-                $defaultType = $key.GetValueKind('').ToString()
-                $defaultValue = $key.GetValue('', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
-            }
-        }
-        finally {
-            $key.Dispose()
-        }
-    }
-    Save-SpecialSnapshot -Context $Context -Name 'ClassicContextMenu' -Value ([pscustomobject]@{
-        ClassKeyExisted = $classKeyExisted
-        KeyExisted = $keyExisted
-        DefaultExisted = $defaultExisted
-        DefaultType = $defaultType
-        DefaultValue = $defaultValue
-    })
-
-    if (-not $keyExisted) {
-        New-Item -Path $path -Force | Out-Null
-    }
-    $key = Get-Item -LiteralPath $path
-    try {
-        $key.SetValue('', '', [Microsoft.Win32.RegistryValueKind]::String)
-    }
-    finally {
-        $key.Dispose()
-    }
-    Write-DebloatLog -Context $Context -Level Success -Component 'Explorer' -Message 'Menu contextual clasico habilitado; requiere reiniciar el Explorador o la sesion.' -Data @{ Path = $path; Command = $command }
-    return 0
-}
-
 function Disable-DebloatReservedStorage {
     param(
         [Parameter(Mandatory)]
@@ -278,6 +221,7 @@ function Disable-DebloatRecall {
 }
 
 function Disable-DebloatTelemetryTasks {
+    [OutputType([int])]
     param(
         [Parameter(Mandatory)]
         [pscustomobject]$Context
@@ -290,7 +234,14 @@ function Disable-DebloatTelemetryTasks {
         '\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip',
         '\Microsoft\Windows\Feedback\Siuf\DmClient',
         '\Microsoft\Windows\Feedback\Siuf\DmClientOnScenarioDownload',
-        '\Microsoft\Windows\Windows Error Reporting\QueueReporting'
+        '\Microsoft\Windows\Windows Error Reporting\QueueReporting',
+        '\Microsoft\Windows\Customer Experience Improvement Program\KernelCeipTask',
+        '\Microsoft\Windows\Autochk\Proxy',
+        '\Microsoft\Windows\Diagnosis\Scheduled',
+        '\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector',
+        '\Microsoft\Windows\Power Efficiency Diagnostics\AnalyzeSystem',
+        '\Microsoft\Windows\RAC\RacTask',
+        '\Microsoft\Windows\WDI\ResolutionHost'
     )
     $allTasks = @(Get-ScheduledTask)
     $snapshots = [System.Collections.Generic.List[object]]::new()
@@ -307,13 +258,28 @@ function Disable-DebloatTelemetryTasks {
     }
 
     Save-SpecialSnapshot -Context $Context -Name 'TelemetryTasks' -Value ([object[]]$snapshots)
+    $failureCount = 0
     foreach ($snapshot in $snapshots) {
-        $task = Get-ScheduledTask -TaskPath $snapshot.TaskPath -TaskName $snapshot.TaskName
-        if ($task.State -ne 'Disabled') {
-            Disable-ScheduledTask -InputObject $task | Out-Null
+        $taskPathLiteral = ConvertTo-DebloatPowerShellLiteral -Value $snapshot.TaskPath
+        $taskNameLiteral = ConvertTo-DebloatPowerShellLiteral -Value $snapshot.TaskName
+        $command = "Disable-ScheduledTask -TaskPath $taskPathLiteral -TaskName $taskNameLiteral"
+        try {
+            $task = Get-ScheduledTask -TaskPath $snapshot.TaskPath -TaskName $snapshot.TaskName
+            if ($task.Settings.Enabled) {
+                Disable-ScheduledTask -TaskPath $snapshot.TaskPath -TaskName $snapshot.TaskName | Out-Null
+                $task = Get-ScheduledTask -TaskPath $snapshot.TaskPath -TaskName $snapshot.TaskName
+            }
+            if ($task.Settings.Enabled) {
+                throw [System.InvalidOperationException]::new('La tarea continua habilitada despues de ejecutar Disable-ScheduledTask.')
+            }
+            Write-DebloatLog -Context $Context -Level Success -Component 'TelemetryTasks' -Message 'Tarea de telemetria deshabilitada.' -Data @{ TaskPath = $snapshot.TaskPath; TaskName = $snapshot.TaskName; PreviousState = $snapshot.State; Command = $command }
         }
-        Write-DebloatLog -Context $Context -Level Success -Component 'TelemetryTasks' -Message 'Tarea de telemetria deshabilitada.' -Data @{ TaskPath = $snapshot.TaskPath; TaskName = $snapshot.TaskName; PreviousState = $snapshot.State }
+        catch {
+            $failureCount++
+            Write-DebloatNotApplied -Context $Context -Level Warning -Component 'TelemetryTasks' -Instruction "Deshabilitar $($snapshot.TaskPath)$($snapshot.TaskName)" -Command $command -Reason $_.Exception.Message -Data @{ TaskPath = $snapshot.TaskPath; TaskName = $snapshot.TaskName }
+        }
     }
+    return $failureCount
 }
 
 function Invoke-DebloatSpecialAction {
@@ -332,8 +298,7 @@ function Invoke-DebloatSpecialAction {
         'DisableReservedStorage' { Disable-DebloatReservedStorage -Context $Context }
         'RemoveOneDrive' { Remove-DebloatOneDrive -Context $Context }
         'DisableRecall' { Disable-DebloatRecall -Context $Context }
-        'DisableTelemetryTasks' { Disable-DebloatTelemetryTasks -Context $Context }
-        'EnableClassicContextMenu' { return (Enable-DebloatClassicContextMenu -Context $Context) }
+        'DisableTelemetryTasks' { return (Disable-DebloatTelemetryTasks -Context $Context) }
         default { throw [System.InvalidOperationException]::new("Handler especial no admitido: $($Action.Handler)") }
     }
     return 0
@@ -371,6 +336,7 @@ function Restore-DebloatSpecialState {
                 $state = if ($wasEnabled) { 'on' } else { 'off' }
                 Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/hibernate $state" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
             }
+            # Preserve rollback support for backups made before removal of the tweak.
             'ClassicContextMenu' {
                 $classPath = 'HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}'
                 $path = Join-Path $classPath 'InprocServer32'
@@ -395,7 +361,7 @@ function Restore-DebloatSpecialState {
                     if (-not (Test-Path -LiteralPath $path)) {
                         New-Item -Path $path -Force | Out-Null
                     }
-                    $key = Get-Item -LiteralPath $path
+                    $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($path.Substring(6), $true)
                     try {
                         if ([bool]$record.Value.DefaultExisted) {
                             $kind = [Microsoft.Win32.RegistryValueKind]::$($record.Value.DefaultType)
@@ -443,7 +409,7 @@ function Restore-DebloatSpecialState {
                         Write-DebloatNotApplied -Context $Context -Level Warning -Component 'SpecialRestore' -Instruction "Restaurar la tarea $($taskState.TaskPath)$($taskState.TaskName)" -Command "Get-ScheduledTask -TaskPath $taskPathLiteral -TaskName $taskNameLiteral | Enable-ScheduledTask" -Reason 'La tarea de telemetria respaldada ya no existe.' -Data @{ TaskPath = $taskState.TaskPath; TaskName = $taskState.TaskName }
                         continue
                     }
-                    if ($taskState.State -ne 'Disabled') {
+                    if ($taskState.State -ne 'Disabled' -and -not $task[0].Settings.Enabled) {
                         Enable-ScheduledTask -InputObject $task[0] | Out-Null
                     }
                 }

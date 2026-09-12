@@ -44,7 +44,7 @@ function Import-DebloatCatalog {
     $allowedKinds = @('Registry', 'Packages', 'Special')
     $allowedRisks = @('Low', 'Medium', 'High', 'Critical')
     $allowedRegistryTypes = @('DWord', 'QWord', 'String', 'ExpandString', 'MultiString', 'Binary')
-    $allowedHandlers = @('SetCustomPowerPlan', 'CleanTemporaryFiles', 'DisableHibernation', 'DisableReservedStorage', 'RemoveOneDrive', 'DisableRecall', 'DisableTelemetryTasks', 'EnableClassicContextMenu')
+    $allowedHandlers = @('SetCustomPowerPlan', 'CleanTemporaryFiles', 'DisableHibernation', 'DisableReservedStorage', 'RemoveOneDrive', 'DisableRecall', 'DisableTelemetryTasks')
     $actionIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 
     foreach ($action in @($catalog.Actions)) {
