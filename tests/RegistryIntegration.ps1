@@ -9,8 +9,8 @@ Import-Module (Join-Path $projectRoot 'src\Common.psm1')
 Import-Module (Join-Path $projectRoot 'src\Registry.psm1')
 
 $testId = [Guid]::NewGuid().ToString('N')
-$registryPath = "HKCU:\Software\PulpoCustomDebloat\Tests\$testId"
-$sessionPath = Join-Path ([System.IO.Path]::GetTempPath()) "PulpoCustomDebloat-Registry-$testId"
+$registryPath = "HKCU:\Software\TinkamaCustomDebloat\Tests\$testId"
+$sessionPath = Join-Path ([System.IO.Path]::GetTempPath()) "TinkamaCustomDebloat-Registry-$testId"
 $context = New-DebloatContext -SessionPath $sessionPath
 $null = New-Item -Path $registryPath -Force
 $null = New-ItemProperty -LiteralPath $registryPath -Name 'Existing' -PropertyType String -Value 'original' -Force
@@ -19,7 +19,7 @@ $action = [pscustomobject]@{
     Title = 'Registry integration test'
     Registry = [object[]]@(
         [pscustomobject]@{ Path = $registryPath; Name = 'Number'; Type = 'DWord'; Value = 7 },
-        [pscustomobject]@{ Path = $registryPath; Name = '@Default'; Type = 'ExpandString'; Value = '%TEMP%\Pulpo' },
+        [pscustomobject]@{ Path = $registryPath; Name = '@Default'; Type = 'ExpandString'; Value = '%TEMP%\Tinkama' },
         [pscustomobject]@{ Path = $registryPath; Name = 'Binary'; Type = 'Binary'; Value = [object[]]@(144, 18, 3, 128, 16, 0, 0, 0) },
         [pscustomobject]@{ Path = $registryPath; Name = 'Multi'; Type = 'MultiString'; Value = [object[]]@('one', 'two') },
         [pscustomobject]@{ Path = $registryPath; Name = 'Existing'; Type = 'DWord'; Value = 9 }
@@ -37,7 +37,7 @@ try {
         if ($readKey.GetValueKind('Number') -ne [Microsoft.Win32.RegistryValueKind]::DWord -or
             $readKey.GetValue('Number') -ne 7 -or
             $readKey.GetValueKind('') -ne [Microsoft.Win32.RegistryValueKind]::ExpandString -or
-            $readKey.GetValue('', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) -ne '%TEMP%\Pulpo' -or
+            $readKey.GetValue('', $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames) -ne '%TEMP%\Tinkama' -or
             $readKey.GetValueKind('Binary') -ne [Microsoft.Win32.RegistryValueKind]::Binary -or
             ($readKey.GetValue('Binary') -join ',') -ne '144,18,3,128,16,0,0,0' -or
             $readKey.GetValueKind('Multi') -ne [Microsoft.Win32.RegistryValueKind]::MultiString -or

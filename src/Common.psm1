@@ -14,7 +14,16 @@ function Get-DebloatDataRoot {
     [OutputType([string])]
     param()
 
-    return Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'PulpoCustomDebloat'
+    $commonDataPath = [Environment]::GetFolderPath('CommonApplicationData')
+    $dataRoot = Join-Path $commonDataPath 'TinkamaCustomDebloat'
+    $legacyRoot = Join-Path $commonDataPath 'PulpoCustomDebloat'
+    if (Test-Path -LiteralPath $legacyRoot -PathType Container) {
+        if (Test-Path -LiteralPath $dataRoot) {
+            throw [System.IO.IOException]::new("Existen datos antiguos en '$legacyRoot' y datos nuevos en '$dataRoot'. Conserva una sola carpeta antes de iniciar Tinkama.")
+        }
+        Move-Item -LiteralPath $legacyRoot -Destination $dataRoot
+    }
+    return $dataRoot
 }
 
 function New-DebloatContext {
@@ -215,7 +224,7 @@ function Get-DebloatDebugReport {
             }
     )
     $lines = [System.Collections.Generic.List[string]]::new()
-    $lines.Add('Pulpo Custom Debloat - Informe de depuracion')
+    $lines.Add('Tinkama Custom Debloat - Informe de depuracion')
     $lines.Add("Sesion: $SessionPath")
     $lines.Add("Cambios no efectuados: $($diagnostics.Count)")
     $lines.Add('')
@@ -259,10 +268,10 @@ function Enter-DebloatJsonLock {
     [OutputType([System.Threading.Mutex])]
     param()
 
-    $mutex = [System.Threading.Mutex]::new($false, 'Local\PulpoCustomDebloat.Json')
+    $mutex = [System.Threading.Mutex]::new($false, 'Local\TinkamaCustomDebloat.Json')
     try {
         if (-not $mutex.WaitOne(15000)) {
-            throw [System.TimeoutException]::new('No se obtuvo el bloqueo de datos de Pulpo Custom Debloat en 15 segundos.')
+            throw [System.TimeoutException]::new('No se obtuvo el bloqueo de datos de Tinkama Custom Debloat en 15 segundos.')
         }
         return $mutex
     }
@@ -432,7 +441,7 @@ function Assert-DebloatSupportedSystem {
     param()
 
     if (-not (Test-DebloatAdministrator)) {
-        throw [System.UnauthorizedAccessException]::new('Pulpo Custom Debloat requiere una sesion elevada como administrador.')
+        throw [System.UnauthorizedAccessException]::new('Tinkama Custom Debloat requiere una sesion elevada como administrador.')
     }
 
     $os = Get-CimInstance -ClassName Win32_OperatingSystem

@@ -52,7 +52,7 @@ function Get-DebloatActionCommand {
         }
         'Special' {
             $commands = @{
-                SetCustomPowerPlan = 'powercfg.exe /duplicatescheme SCHEME_MIN; powercfg.exe /setactive <PulpoCustomGuid>'
+                SetCustomPowerPlan = 'powercfg.exe /duplicatescheme SCHEME_MIN; powercfg.exe /setactive <TinkamaCustomGuid>'
                 CleanTemporaryFiles = "Remove-Item -LiteralPath '`$env:SystemRoot\Prefetch\*','`$env:SystemRoot\Temp\*','`$env:TEMP\*' -Recurse -Force"
                 DisableHibernation = 'powercfg.exe /hibernate off'
                 DisableReservedStorage = 'Set-WindowsReservedStorageState -State Disabled'
@@ -99,7 +99,7 @@ function Invoke-DebloatSelection {
 
     try {
         & $ProgressCallback 'Creando punto de restauracion obligatorio (limite: 120 segundos)' 0 ($actions.Count + $services.Count) $context.SessionPath
-        New-DebloatRestorePoint -Context $context -Description 'Revertir cambios - Pulpo Custom Debloat'
+        New-DebloatRestorePoint -Context $context -Description 'Revertir cambios - Tinkama Custom Debloat'
         Export-DebloatAppxInventory -Context $context
 
         $warningCount = 0
@@ -187,7 +187,7 @@ function Restore-LatestDebloatSession {
     Assert-DebloatSupportedSystem
     $sessionPath = Get-LatestDebloatSessionPath
     $context = New-DebloatContext -SessionPath $sessionPath
-    New-DebloatRestorePoint -Context $context -Description 'Antes de revertir - Pulpo Custom Debloat'
+    New-DebloatRestorePoint -Context $context -Description 'Antes de revertir - Tinkama Custom Debloat'
 
     try {
         Restore-DebloatServices -Context $context

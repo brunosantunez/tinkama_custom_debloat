@@ -9,7 +9,7 @@ Import-Module (Join-Path $projectRoot 'src\Common.psm1')
 Import-Module (Join-Path $projectRoot 'src\Packages.psm1')
 
 $testId = [Guid]::NewGuid().ToString('N')
-$sessionPath = Join-Path ([System.IO.Path]::GetTempPath()) "PulpoCustomDebloat-Packages-$testId"
+$sessionPath = Join-Path ([System.IO.Path]::GetTempPath()) "TinkamaCustomDebloat-Packages-$testId"
 $context = New-DebloatContext -SessionPath $sessionPath
 $action = [pscustomobject]@{
     Id = 'PackageContinuation'

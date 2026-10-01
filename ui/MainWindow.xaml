@@ -1,7 +1,7 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Name="MainWindow"
-        Title="Pulpo Custom Debloat"
+        Title="Tinkama Custom Debloat"
         Width="1180"
         Height="760"
         MinWidth="920"
@@ -196,7 +196,7 @@
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE713;" Foreground="#40C99B" FontSize="25" Margin="0,0,13,0" />
                     <StackPanel>
-                        <TextBlock Text="Pulpo Custom Debloat" Foreground="White" FontSize="24" FontWeight="SemiBold" />
+                        <TextBlock Text="Tinkama Custom Debloat" Foreground="White" FontSize="24" FontWeight="SemiBold" />
                         <TextBlock x:Name="SystemInfoText" Text="Windows" Foreground="#ADB5BD" FontSize="12" />
                     </StackPanel>
                 </StackPanel>

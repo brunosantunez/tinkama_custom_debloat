@@ -13,7 +13,7 @@ $context = New-DebloatContext -SessionPath $sessionPath
 try {
     Write-DebloatLog -Context $context -Level Success -Component 'Fixture' -Message 'Cambio aplicado.' -Data @{ ActionId = 'success' }
     Write-DebloatNotApplied -Context $context -Level Info -Component 'Packages' -Instruction 'Eliminar paquete Microsoft.Test' -Command "Get-AppxPackage -Name 'Microsoft.Test'" -Reason 'El paquete no esta instalado.' -Data @{ ActionId = 'missing_package' }
-    Write-DebloatNotApplied -Context $context -Level Warning -Component 'Registry' -Instruction 'Establecer un valor de prueba' -Command 'reg.exe add "HKCU\Software\PulpoTest" /v Test /t REG_DWORD /d 1 /f' -Reason 'Acceso denegado de prueba.' -Data @{ ActionId = 'registry_failure' }
+    Write-DebloatNotApplied -Context $context -Level Warning -Component 'Registry' -Instruction 'Establecer un valor de prueba' -Command 'reg.exe add "HKCU\Software\TinkamaTest" /v Test /t REG_DWORD /d 1 /f' -Reason 'Acceso denegado de prueba.' -Data @{ ActionId = 'registry_failure' }
 
     $report = Get-DebloatDebugReport -SessionPath $sessionPath
     if ($report.Count -ne 2 -or

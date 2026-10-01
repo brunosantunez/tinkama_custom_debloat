@@ -41,11 +41,11 @@ try {
 }
 catch {
     $failure = $_
-    $logRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'PulpoCustomDebloat\Logs'
+    $logRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'TinkamaCustomDebloat\Logs'
     New-Item -ItemType Directory -Path $logRoot -Force | Out-Null
     $logPath = Join-Path $logRoot ('startup-{0}.log' -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
     ($failure | Format-List * -Force | Out-String) + [Environment]::NewLine + $failure.ScriptStackTrace | Set-Content -LiteralPath $logPath -Encoding UTF8
     Add-Type -AssemblyName PresentationFramework
-    [System.Windows.MessageBox]::Show("$($failure.Exception.Message)$([Environment]::NewLine)Registro: $logPath", 'Pulpo Custom Debloat - Error de inicio', 'OK', 'Error') | Out-Null
+    [System.Windows.MessageBox]::Show("$($failure.Exception.Message)$([Environment]::NewLine)Registro: $logPath", 'Tinkama Custom Debloat - Error de inicio', 'OK', 'Error') | Out-Null
     exit 1
 }

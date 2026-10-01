@@ -6,8 +6,8 @@ $ErrorActionPreference = 'Stop'
 
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-$archiveUri = 'https://github.com/brunosantunez/pulpo_custom_debloat/archive/refs/heads/main.zip'
-$installRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'PulpoCustomDebloat'
+$archiveUri = 'https://github.com/brunosantunez/tinkama_custom_debloat/archive/refs/heads/main.zip'
+$installRoot = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'TinkamaCustomDebloat'
 $currentPath = Join-Path $installRoot 'current'
 $stagingPath = Join-Path $installRoot ('staging-{0}' -f [Guid]::NewGuid().ToString('N'))
 $archivePath = Join-Path $stagingPath 'source.zip'
@@ -29,7 +29,7 @@ try {
 
     $sourcePath = $sourceDirectories[0].FullName
     $requiredPaths = @(
-        'PulpoCustomDebloat.ps1'
+        'TinkamaCustomDebloat.ps1'
         'config\catalog.json'
         'ui\MainWindow.xaml'
         'src\Engine.psm1'
@@ -57,7 +57,7 @@ try {
 
     Move-Item -LiteralPath $sourcePath -Destination $currentPath
 
-    $entryPoint = Join-Path $currentPath 'PulpoCustomDebloat.ps1'
+    $entryPoint = Join-Path $currentPath 'TinkamaCustomDebloat.ps1'
     $arguments = @(
         '-NoLogo'
         '-NoProfile'

@@ -51,7 +51,7 @@ function Show-DebloatScriptConsent {
     Add-Type -AssemblyName PresentationFramework
     $window = [System.Windows.Window]::new()
     $window.Name = 'ScriptExecutionConsent'
-    $window.Title = 'Pulpo Custom Debloat'
+    $window.Title = 'Tinkama Custom Debloat'
     $window.Width = 570
     $window.Height = 300
     $window.ResizeMode = [System.Windows.ResizeMode]::NoResize
@@ -69,7 +69,7 @@ function Show-DebloatScriptConsent {
     $panel.Children.Add($title) | Out-Null
 
     $message = [System.Windows.Controls.TextBlock]::new()
-    $message.Text = 'Pulpo Custom Debloat preparara PowerShell solo para esta sesion y quitara el bloqueo de descarga a sus propios archivos. UAC y Microsoft Defender permaneceran activos.'
+    $message.Text = 'Tinkama Custom Debloat preparara PowerShell solo para esta sesion y quitara el bloqueo de descarga a sus propios archivos. UAC y Microsoft Defender permaneceran activos.'
     $message.TextWrapping = [System.Windows.TextWrapping]::Wrap
     $message.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#C9C9C9')
     $message.FontSize = 14

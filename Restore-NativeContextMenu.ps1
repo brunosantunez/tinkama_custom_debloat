@@ -7,7 +7,7 @@ $ErrorActionPreference = 'Stop'
 $subKey = 'Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}'
 $path = "HKCU:\$subKey"
 if (Test-Path -LiteralPath $path) {
-    $backupRoot = Join-Path $env:LOCALAPPDATA 'PulpoCustomDebloat\Backups'
+    $backupRoot = Join-Path $env:LOCALAPPDATA 'TinkamaCustomDebloat\Backups'
     New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
     $backupPath = Join-Path $backupRoot ("ContextMenu-{0}.reg" -f [Guid]::NewGuid().ToString('N'))
     & reg.exe export "HKCU\$subKey" $backupPath /y

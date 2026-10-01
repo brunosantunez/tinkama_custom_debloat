@@ -162,7 +162,7 @@ function Get-LatestDebloatSessionPath {
 
     $backupRoot = Join-Path (Get-DebloatDataRoot) 'Backups'
     if (-not (Test-Path -LiteralPath $backupRoot -PathType Container)) {
-        throw [System.IO.DirectoryNotFoundException]::new('No existen sesiones de respaldo de Pulpo Custom Debloat.')
+        throw [System.IO.DirectoryNotFoundException]::new('No existen sesiones de respaldo de Tinkama Custom Debloat.')
     }
 
     $candidates = foreach ($directory in @(Get-ChildItem -LiteralPath $backupRoot -Directory | Sort-Object LastWriteTime -Descending)) {

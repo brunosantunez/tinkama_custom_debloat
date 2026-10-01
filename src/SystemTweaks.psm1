@@ -58,7 +58,7 @@ function Set-CustomPowerPlan {
     if (-not $customExisted) {
         Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/duplicatescheme $highPerformanceGuid $customGuid" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
     }
-    $renameArguments = '/changename {0} "Pulpo Custom - Alto rendimiento" "Plan estable para mantenimiento y uso diario"' -f $customGuid
+    $renameArguments = '/changename {0} "Tinkama Custom - Alto rendimiento" "Plan estable para mantenimiento y uso diario"' -f $customGuid
     Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments $renameArguments -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
     Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/setacvalueindex $customGuid SUB_PROCESSOR PROCTHROTTLEMIN 100" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
     Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/setdcvalueindex $customGuid SUB_PROCESSOR PROCTHROTTLEMIN 5" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null

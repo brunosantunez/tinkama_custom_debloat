@@ -9,7 +9,7 @@ Import-Module (Join-Path $projectRoot 'src\Registry.psm1')
 Import-Module (Join-Path $projectRoot 'src\Catalog.psm1')
 $catalog = Import-DebloatCatalog -Path (Join-Path $projectRoot 'config\catalog.json')
 $testId = [Guid]::NewGuid().ToString('N')
-$root = "HKCU:\Software\PulpoCustomDebloat\Tests\$testId"
+$root = "HKCU:\Software\TinkamaCustomDebloat\Tests\$testId"
 $context = New-DebloatContext -SessionPath (Join-Path $projectRoot "artifacts\privacy-$testId")
 $count = 0
 try {

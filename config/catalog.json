@@ -381,7 +381,7 @@
     },
     {
       "Id": "custom_power_plan",
-      "Title": "Plan Pulpo Custom - Alto rendimiento",
+      "Title": "Plan Tinkama Custom - Alto rendimiento",
       "Description": "Crea y activa un plan propio basado en Alto rendimiento, con limites distintos para corriente y bateria.",
       "Category": "Rendimiento",
       "Kind": "Special",

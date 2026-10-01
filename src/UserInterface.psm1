@@ -711,7 +711,7 @@ function Show-DebloatWindow {
             $actionIds = Get-SelectedIds -CheckBoxes $actionCheckBoxes
             $serviceIds = Get-SelectedIds -CheckBoxes $serviceCheckBoxes
             if ($actionIds.Count + $serviceIds.Count -eq 0) {
-                [System.Windows.MessageBox]::Show($window, 'No hay acciones seleccionadas.', 'Pulpo Custom Debloat', 'OK', 'Information') | Out-Null
+                [System.Windows.MessageBox]::Show($window, 'No hay acciones seleccionadas.', 'Tinkama Custom Debloat', 'OK', 'Information') | Out-Null
                 return
             }
 
