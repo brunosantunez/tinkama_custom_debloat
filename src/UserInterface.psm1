@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1')
 Import-Module (Join-Path $PSScriptRoot 'Execution.psm1')
+Import-Module (Join-Path $PSScriptRoot 'Localization.psm1')
 Import-Module (Join-Path $PSScriptRoot 'Worker.psm1')
 
 Add-Type -AssemblyName PresentationFramework
@@ -58,7 +59,11 @@ function New-OptionCheckBox {
         [pscustomobject]$Entry,
 
         [Parameter(Mandatory)]
-        [bool]$Protected
+        [bool]$Protected,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('es', 'en')]
+        [string]$Language
     )
 
     $riskLabels = @{ Low = 'BAJO'; Medium = 'MEDIO'; High = 'ALTO'; Critical = 'CRITICO' }
@@ -76,7 +81,7 @@ function New-OptionCheckBox {
     $titleRow = [System.Windows.Controls.StackPanel]::new()
     $titleRow.Orientation = [System.Windows.Controls.Orientation]::Horizontal
     $title = [System.Windows.Controls.TextBlock]::new()
-    $title.Text = [string]$Entry.Title
+    $title.Text = Get-TinkamaEntryTitle -Entry $Entry -Language $Language
     $title.FontSize = 14
     $title.FontWeight = [System.Windows.FontWeights]::SemiBold
     $title.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#EEEEEE')
@@ -114,13 +119,15 @@ function Add-ActionSections {
         [object[]]$Entries,
 
         [Parameter(Mandatory)]
-        [hashtable]$CheckBoxes
+        [hashtable]$CheckBoxes,
+
+        [Parameter(Mandatory)] [ValidateSet('es', 'en')] [string]$Language
     )
 
     foreach ($group in @($Entries | Group-Object Category)) {
-        $Panel.Children.Add((New-SectionHeader -Title $group.Name)) | Out-Null
+        $Panel.Children.Add((New-SectionHeader -Title (Get-TinkamaText -Text $group.Name -Language $Language))) | Out-Null
         foreach ($entry in @($group.Group)) {
-            $checkBox = New-OptionCheckBox -Entry $entry -Protected $false
+            $checkBox = New-OptionCheckBox -Entry $entry -Protected $false -Language $Language
             $CheckBoxes[[string]$entry.Id] = $checkBox
             $Panel.Children.Add($checkBox) | Out-Null
         }
@@ -136,7 +143,9 @@ function Add-ServiceSections {
         [object[]]$Entries,
 
         [Parameter(Mandatory)]
-        [hashtable]$CheckBoxes
+        [hashtable]$CheckBoxes,
+
+        [Parameter(Mandatory)] [ValidateSet('es', 'en')] [string]$Language
     )
 
     $riskOrder = @('Low', 'Medium', 'High', 'Critical')
@@ -152,9 +161,9 @@ function Add-ServiceSections {
         if ($entriesForRisk.Count -eq 0) {
             continue
         }
-        $Panel.Children.Add((New-SectionHeader -Title $riskTitles[$riskName])) | Out-Null
+        $Panel.Children.Add((New-SectionHeader -Title (Get-TinkamaText -Text $riskTitles[$riskName] -Language $Language))) | Out-Null
         foreach ($entry in $entriesForRisk) {
-            $checkBox = New-OptionCheckBox -Entry $entry -Protected ([bool]$entry.Protected)
+            $checkBox = New-OptionCheckBox -Entry $entry -Protected ([bool]$entry.Protected) -Language $Language
             $CheckBoxes[[string]$entry.Id] = $checkBox
             $Panel.Children.Add($checkBox) | Out-Null
         }
@@ -555,7 +564,11 @@ function Show-DebloatWindow {
         [string]$ProjectRoot,
 
         [Parameter(Mandatory)]
-        [pscustomobject]$Catalog
+        [pscustomobject]$Catalog,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('es', 'en')]
+        [string]$Language
     )
 
     $xamlPath = Join-Path $ProjectRoot 'ui\MainWindow.xaml'
@@ -565,6 +578,10 @@ function Show-DebloatWindow {
     [xml]$xaml = Get-Content -LiteralPath $xamlPath -Raw
     $reader = [System.Xml.XmlNodeReader]::new($xaml)
     $window = [Windows.Markup.XamlReader]::Load($reader)
+    Set-TinkamaStaticLocalization -Window $window -Language $Language
+    $iconPath = Join-Path $ProjectRoot 'assets\tinkamalogo2.ico'
+    Set-DebloatWindowIcon -Window $window -IconPath $iconPath
+    (Get-WindowElement -Window $window -Name 'TinkamaLogo').Source = New-DebloatBitmapImage -ImagePath (Join-Path $ProjectRoot 'assets\tinkamalogo2-header.png')
     $window.Tag = [pscustomobject]@{
         Busy = $false
         LastResult = $null
@@ -602,6 +619,7 @@ function Show-DebloatWindow {
     $prepareScriptsButton = Get-WindowElement -Window $window -Name 'PrepareScriptsButton'
     $copyDebugButton = Get-WindowElement -Window $window -Name 'CopyDebugButton'
     $openDebugReportButton = Get-WindowElement -Window $window -Name 'OpenDebugReportButton'
+    $languageButton = Get-WindowElement -Window $window -Name 'LanguageButton'
 
     $os = Get-CimInstance -ClassName Win32_OperatingSystem
     $systemInfoText.Text = "$($os.Caption) | Build $($os.BuildNumber) | $env:COMPUTERNAME"
@@ -615,9 +633,19 @@ function Show-DebloatWindow {
             Where-Object Category -ne 'Aplicaciones' |
             Sort-Object @{ Expression = { $categoryOrder[[string]$_.Category] } }, Title
     )
-    Add-ActionSections -Panel $settingsPanel -Entries $settingsActions -CheckBoxes $actionCheckBoxes
-    Add-ActionSections -Panel $appsPanel -Entries $applicationActions -CheckBoxes $actionCheckBoxes
-    Add-ServiceSections -Panel $servicesPanel -Entries @($Catalog.Services) -CheckBoxes $serviceCheckBoxes
+    Add-ActionSections -Panel $settingsPanel -Entries $settingsActions -CheckBoxes $actionCheckBoxes -Language $Language
+    Add-ActionSections -Panel $appsPanel -Entries $applicationActions -CheckBoxes $actionCheckBoxes -Language $Language
+    Add-ServiceSections -Panel $servicesPanel -Entries @($Catalog.Services) -CheckBoxes $serviceCheckBoxes -Language $Language
+
+    $languageButton.Content = if ($Language -eq 'es') { 'EN' } else { 'ES' }
+    $languageButton.ToolTip = Get-TinkamaText -Text 'Cambiar idioma' -Language $Language
+    $languageButton.Add_Click(({
+        $nextLanguage = if ($Language -eq 'es') { 'en' } else { 'es' }
+        Set-TinkamaLanguage -Language $nextLanguage
+        $window.Close()
+        $arguments = @('-NoLogo', '-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', ('"{0}"' -f (Join-Path $ProjectRoot 'TinkamaCustomDebloat.ps1')))
+        Start-Process -FilePath (Get-DebloatPowerShellPath) -ArgumentList $arguments -WorkingDirectory $ProjectRoot -WindowStyle Hidden | Out-Null
+    }).GetNewClosure())
 
     $selectionChanged = {
         Update-SelectionSummary -TextBlock $selectionText -ActionCheckBoxes $actionCheckBoxes -ServiceCheckBoxes $serviceCheckBoxes

@@ -54,7 +54,7 @@ $window = [Windows.Markup.XamlReader]::Load($reader)
 $requiredControls = @(
     'SettingsPanel', 'AppsPanel', 'ServicesPanel', 'ToolsPanel', 'SelectionText',
     'StatusText', 'WorkProgress', 'ApplyButton', 'RestoreSettingsButton', 'LogTextBox', 'PrepareScriptsButton',
-    'DebugTextBox', 'CopyDebugButton', 'OpenDebugReportButton'
+    'DebugTextBox', 'CopyDebugButton', 'OpenDebugReportButton', 'TinkamaLogo', 'LanguageButton'
 )
 foreach ($name in $requiredControls) {
     if ($null -eq $window.FindName($name)) {

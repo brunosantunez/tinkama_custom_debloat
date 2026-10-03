@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = $PSScriptRoot
 try {
     Import-Module (Join-Path $projectRoot 'src\Execution.psm1')
+    Import-Module (Join-Path $projectRoot 'src\Localization.psm1')
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = [Security.Principal.WindowsPrincipal]::new($identity)
     $isAdministrator = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
@@ -30,6 +31,14 @@ try {
         exit 0
     }
 
+    $languagePath = Get-TinkamaLanguagePath
+    if (-not (Test-Path -LiteralPath $languagePath -PathType Leaf)) {
+        $selectedLanguage = Show-TinkamaLanguageSelection
+        if ([string]::IsNullOrWhiteSpace($selectedLanguage)) { exit 0 }
+        Set-TinkamaLanguage -Language $selectedLanguage
+    }
+    $language = Get-TinkamaLanguage
+
     if (-not (Show-DebloatScriptConsent)) {
         exit 0
     }
@@ -37,7 +46,7 @@ try {
     Import-Module (Join-Path $projectRoot 'src\Catalog.psm1')
     Import-Module (Join-Path $projectRoot 'src\UserInterface.psm1')
     $catalog = Import-DebloatCatalog -Path (Join-Path $projectRoot 'config\catalog.json')
-    Show-DebloatWindow -ProjectRoot $projectRoot -Catalog $catalog
+    Show-DebloatWindow -ProjectRoot $projectRoot -Catalog $catalog -Language $language
 }
 catch {
     $failure = $_

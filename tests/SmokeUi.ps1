@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param()
+param(
+    [ValidateSet('es', 'en')]
+    [string]$Language = 'es'
+)
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
@@ -120,7 +123,7 @@ $timer.Add_Tick(({
 }).GetNewClosure())
 $timer.Start()
 
-Show-DebloatWindow -ProjectRoot $projectRoot -Catalog $catalog
+Show-DebloatWindow -ProjectRoot $projectRoot -Catalog $catalog -Language $Language
 $application.Shutdown()
 if ($null -ne $testState.Failure) { throw $testState.Failure }
 Write-Output 'WPF profiles, worker recovery, live progress and live logs passed without system changes.'

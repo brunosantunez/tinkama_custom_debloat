@@ -194,18 +194,21 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE713;" Foreground="#40C99B" FontSize="25" Margin="0,0,13,0" />
+                    <Image x:Name="TinkamaLogo" Width="42" Height="42" Stretch="Uniform" Margin="0,0,13,0" />
                     <StackPanel>
                         <TextBlock Text="Tinkama Custom Debloat" Foreground="White" FontSize="24" FontWeight="SemiBold" />
                         <TextBlock x:Name="SystemInfoText" Text="Windows" Foreground="#ADB5BD" FontSize="12" />
                     </StackPanel>
                 </StackPanel>
-                <Border Grid.Column="1" Background="#242A2E" BorderBrush="#3A4247" BorderThickness="1" CornerRadius="5" Padding="12,7" VerticalAlignment="Center">
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="LanguageButton" Content="EN" ToolTip="Cambiar idioma" Width="48" Padding="8" Margin="0,0,10,0" />
+                    <Border Background="#242A2E" BorderBrush="#3A4247" BorderThickness="1" CornerRadius="5" Padding="12,7">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE72E;" Foreground="#40C99B" Margin="0,0,8,0" />
                         <TextBlock Text="Administrador" Foreground="#DDE2E5" FontSize="12" />
                     </StackPanel>
-                </Border>
+                    </Border>
+                </StackPanel>
             </Grid>
         </Border>
 

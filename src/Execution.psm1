@@ -59,6 +59,7 @@ function Show-DebloatScriptConsent {
     $window.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#111111')
     $window.Foreground = [System.Windows.Media.Brushes]::White
     $window.FontFamily = [System.Windows.Media.FontFamily]::new('Segoe UI')
+    Set-DebloatWindowIcon -Window $window -IconPath (Join-Path $PSScriptRoot '..\assets\tinkamalogo2.ico')
 
     $panel = [System.Windows.Controls.StackPanel]::new()
     $panel.Margin = [System.Windows.Thickness]::new(24)
@@ -113,4 +114,41 @@ function Show-DebloatScriptConsent {
     return $window.ShowDialog() -eq $true
 }
 
-Export-ModuleMember -Function Get-DebloatPowerShellPath, Enable-DebloatSessionScripts, Show-DebloatScriptConsent
+function Set-DebloatWindowIcon {
+    param(
+        [Parameter(Mandatory)]
+        [System.Windows.Window]$Window,
+
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$IconPath
+    )
+
+    if (-not (Test-Path -LiteralPath $IconPath -PathType Leaf)) {
+        throw [System.IO.FileNotFoundException]::new("No se encontro el icono de Tinkama: $IconPath")
+    }
+
+    $Window.Icon = New-DebloatBitmapImage -ImagePath $IconPath
+}
+
+function New-DebloatBitmapImage {
+    [OutputType([System.Windows.Media.Imaging.BitmapImage])]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [string]$ImagePath
+    )
+
+    if (-not (Test-Path -LiteralPath $ImagePath -PathType Leaf)) {
+        throw [System.IO.FileNotFoundException]::new("No se encontro el recurso de imagen de Tinkama: $ImagePath")
+    }
+
+    $icon = [System.Windows.Media.Imaging.BitmapImage]::new()
+    $icon.BeginInit()
+    $icon.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
+    $icon.UriSource = [Uri]::new((Resolve-Path -LiteralPath $ImagePath).Path, [UriKind]::Absolute)
+    $icon.EndInit()
+    return $icon
+}
+
+Export-ModuleMember -Function Get-DebloatPowerShellPath, Enable-DebloatSessionScripts, Show-DebloatScriptConsent, Set-DebloatWindowIcon, New-DebloatBitmapImage
