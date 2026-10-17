@@ -1,8 +1,13 @@
-![Alt text](assets/interfaz.png)
-
+![Alt text](assets/interfaz.png) \
+![Update](https://img.shields.io/badge/Update_v1.1-verde) \
+```diff
+-Se eliminó la opción de detener el servicio del panel "Dispositivos"
+!Se corrigió un bug relacionado con los permisos de modificación de archivos que interfería con WDefender
++Se añadió el icono a la app referido a "Tinkama"
+```
 # Tinkama Custom Debloat
 
-Herramienta PowerShell 5.1 + WPF para optimizar equipos con Windows 10 y Windows 11.
+Herramienta para optimizar equipos con Windows 10 y Windows 11.
 
 ### Inicio rapido
 
@@ -14,7 +19,7 @@ irm https://raw.githubusercontent.com/brunosantunez/tinkama_custom_debloat/main/
 
 Tambien puedes ejecutar `Run.cmd` desde una copia local.
 
-La primera ejecucion permite elegir Espanol o English. El idioma se guarda y puede cambiarse desde la interfaz.
+La primera ejecucion permite elegir Español o English. El idioma se guarda y puede cambiarse desde la interfaz.
 
 ### Funciones
 
@@ -34,8 +39,13 @@ Se mantiene UAC, Microsoft Defender y las politicas permanentes de ejecucion sin
 - [FPSBoostPro](https://github.com/itechfever/FPSBoostPro)
 
 ## English
-
-PowerShell 5.1 + WPF tool for optimizing Windows 10 and Windows 11 computers.
+![Update](https://img.shields.io/badge/Update!_v1.1)\
+```diff
+-The option to stop the service from the "Devices" panel was removed
+!A bug related to file modification permissions that interfered with WDefender has been fixed
++An icon for the "Tinkama" app has been added
+```
+### PowerShell tool for optimizing Windows 10 and Windows 11 computers.
 
 ### Quick start
 
@@ -47,7 +57,7 @@ irm https://raw.githubusercontent.com/brunosantunez/tinkama_custom_debloat/main/
 
 You can also run `Run.cmd` from a local copy.
 
-On the first launch, choose Espanol or English. The language is saved and can be changed from the interface.
+On the first launch, choose Spanish or English. The language is saved and can be changed from the interface.
 
 ### Features
 

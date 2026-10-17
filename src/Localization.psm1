@@ -1,6 +1,8 @@
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 
+Import-Module (Join-Path $PSScriptRoot 'Execution.psm1')
+
 $script:Translations = @{
     en = @{
         'PERFIL' = 'PROFILE'
@@ -203,6 +205,7 @@ function Show-TinkamaLanguageSelection {
     $window.WindowStartupLocation = [System.Windows.WindowStartupLocation]::CenterScreen
     $window.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#111111')
     $window.Foreground = [System.Windows.Media.Brushes]::White
+    Set-DebloatWindowIcon -Window $window -IconPath (Join-Path $PSScriptRoot '..\assets\tinkamalogo2.ico')
     $panel = [System.Windows.Controls.StackPanel]::new()
     $panel.Margin = [System.Windows.Thickness]::new(24)
     $title = [System.Windows.Controls.TextBlock]::new()

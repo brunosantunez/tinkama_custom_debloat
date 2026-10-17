@@ -114,6 +114,29 @@ function Show-DebloatScriptConsent {
     return $window.ShowDialog() -eq $true
 }
 
+function Set-DebloatProcessIdentity {
+    if (-not ('TinkamaTaskbarInterop' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class TinkamaTaskbarInterop
+{
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern int SetCurrentProcessExplicitAppUserModelID(string appId);
+
+    [DllImport("user32.dll", EntryPoint = "SendMessageW", SetLastError = true)]
+    public static extern IntPtr SendMessage(IntPtr windowHandle, uint message, IntPtr wParam, IntPtr lParam);
+}
+'@
+    }
+
+    $result = [TinkamaTaskbarInterop]::SetCurrentProcessExplicitAppUserModelID('Bruno.TinkamaCustomDebloat')
+    if ($result -lt 0) {
+        [System.Runtime.InteropServices.Marshal]::ThrowExceptionForHR($result)
+    }
+}
+
 function Set-DebloatWindowIcon {
     param(
         [Parameter(Mandatory)]
@@ -128,7 +151,17 @@ function Set-DebloatWindowIcon {
         throw [System.IO.FileNotFoundException]::new("No se encontro el icono de Tinkama: $IconPath")
     }
 
+    Set-DebloatProcessIdentity
     $Window.Icon = New-DebloatBitmapImage -ImagePath $IconPath
+    Add-Type -AssemblyName System.Drawing
+    $nativeIcon = [System.Drawing.Icon]::new((Resolve-Path -LiteralPath $IconPath).Path)
+    $Window.Resources.Add('TinkamaTaskbarIcon', $nativeIcon)
+    $initializeIcon = {
+        $windowHandle = [System.Windows.Interop.WindowInteropHelper]::new($Window).Handle
+        [TinkamaTaskbarInterop]::SendMessage($windowHandle, 0x0080, [IntPtr]::Zero, $nativeIcon.Handle) | Out-Null
+        [TinkamaTaskbarInterop]::SendMessage($windowHandle, 0x0080, [IntPtr]1, $nativeIcon.Handle) | Out-Null
+    }.GetNewClosure()
+    $Window.Add_SourceInitialized($initializeIcon)
 }
 
 function New-DebloatBitmapImage {
@@ -151,4 +184,4 @@ function New-DebloatBitmapImage {
     return $icon
 }
 
-Export-ModuleMember -Function Get-DebloatPowerShellPath, Enable-DebloatSessionScripts, Show-DebloatScriptConsent, Set-DebloatWindowIcon, New-DebloatBitmapImage
+Export-ModuleMember -Function Get-DebloatPowerShellPath, Enable-DebloatSessionScripts, Show-DebloatScriptConsent, Set-DebloatProcessIdentity, Set-DebloatWindowIcon, New-DebloatBitmapImage

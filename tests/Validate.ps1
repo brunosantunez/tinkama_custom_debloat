@@ -26,6 +26,21 @@ if ($parseFailures.Count -gt 0) {
 Import-Module (Join-Path $projectRoot 'src\Catalog.psm1')
 $catalog = Import-DebloatCatalog -Path (Join-Path $projectRoot 'config\catalog.json')
 
+$removedDeviceServiceIds = @('svc_cdp_user', 'svc_device_flow')
+$remainingDeviceServices = @($catalog.Services | Where-Object Id -in $removedDeviceServiceIds)
+if ($remainingDeviceServices.Count -gt 0) {
+    throw [System.IO.InvalidDataException]::new("Los servicios que afectan la pagina Dispositivos siguen disponibles: $($remainingDeviceServices.Id -join ', ')")
+}
+if (@($catalog.Services | Where-Object Id -eq 'svc_cdp').Count -ne 1) {
+    throw [System.IO.InvalidDataException]::new('CDPSvc debe permanecer disponible en el catalogo.')
+}
+foreach ($profile in @($catalog.Profiles)) {
+    $selectedDeviceServices = @($profile.ServiceIds | Where-Object { $_ -in $removedDeviceServiceIds })
+    if ($selectedDeviceServices.Count -gt 0) {
+        throw [System.IO.InvalidDataException]::new("El perfil $($profile.Id) aun selecciona servicios de la pagina Dispositivos: $($selectedDeviceServices -join ', ')")
+    }
+}
+
 $protectedServices = @($catalog.Services | Where-Object Protected | Select-Object -ExpandProperty Id)
 foreach ($profile in @($catalog.Profiles)) {
     $invalid = @($profile.ServiceIds | Where-Object { $_ -in $protectedServices })

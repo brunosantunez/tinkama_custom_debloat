@@ -169,7 +169,18 @@ function Invoke-DebloatSelection {
         $actionIdsLiteral = ConvertTo-DebloatPowerShellLiteral -Value ([string[]]$ActionIds)
         $serviceIdsLiteral = ConvertTo-DebloatPowerShellLiteral -Value ([string[]]$ServiceIds)
         $command = "Invoke-DebloatSelection -ActionIds $actionIdsLiteral -ServiceIds $serviceIdsLiteral"
-        Write-DebloatNotApplied -Context $context -Level Error -Component 'Engine' -Instruction 'Completar la seleccion de optimizacion' -Command $command -Reason $_.Exception.Message -Data @{ ErrorType = $_.Exception.GetType().FullName }
+        try {
+            Write-DebloatNotApplied -Context $context -Level Error -Component 'Engine' -Instruction 'Completar la seleccion de optimizacion' -Command $command -Reason $failure.Exception.Message -Data @{ ErrorType = $failure.Exception.GetType().FullName }
+        }
+        catch {
+            $loggingFailure = $_.Exception
+            $combinedFailure = [System.AggregateException]::new(
+                "La optimizacion fallo: $($failure.Exception.Message). Tambien fallo el registro del error: $($loggingFailure.Message)",
+                [System.Exception[]]@($failure.Exception, $loggingFailure)
+            )
+            $combinedFailure.Data['SessionPath'] = $context.SessionPath
+            throw $combinedFailure
+        }
         Complete-DebloatSession -Context $context -Status Failed -ErrorMessage $_.Exception.Message
         $debugReportPath = Save-DebloatDebugReport -SessionPath $context.SessionPath
         $failure.Exception.Data['DebugReportPath'] = $debugReportPath

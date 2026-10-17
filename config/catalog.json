@@ -575,8 +575,6 @@
     { "Id": "svc_notifications_user", "Pattern": "WpnUserService_*", "TemplateName": "WpnUserService", "Title": "Notificaciones push por usuario", "Description": "Instancias por usuario de notificaciones.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false },
     { "Id": "svc_phone", "Pattern": "PhoneSvc", "Title": "Servicio de telefono", "Description": "Integracion de telefonia.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false },
     { "Id": "svc_cdp", "Pattern": "CDPSvc", "Title": "Plataforma de dispositivos conectados", "Description": "Experiencias entre dispositivos.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false },
-    { "Id": "svc_cdp_user", "Pattern": "CDPUserSvc_*", "TemplateName": "CDPUserSvc", "Title": "Dispositivos conectados por usuario", "Description": "Instancias CDP por usuario.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false },
-    { "Id": "svc_device_flow", "Pattern": "DevicesFlowUserSvc_*", "TemplateName": "DevicesFlowUserSvc", "Title": "Flujo de dispositivos", "Description": "Conexion y emparejamiento entre dispositivos.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false },
     { "Id": "svc_contact_index", "Pattern": "PimIndexMaintenanceSvc_*", "TemplateName": "PimIndexMaintenanceSvc", "Title": "Indice de contactos", "Description": "Indexa contactos, correo y calendario.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false },
     { "Id": "svc_sync", "Pattern": "OneSyncSvc_*", "TemplateName": "OneSyncSvc", "Title": "Sincronizacion de correo y calendario", "Description": "Sincroniza datos de aplicaciones Microsoft.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false },
     { "Id": "svc_messaging", "Pattern": "MessagingService_*", "TemplateName": "MessagingService", "Title": "Mensajeria", "Description": "Mensajeria entre aplicaciones y dispositivos.", "StartupType": "Disabled", "Risk": "Medium", "Protected": false },
@@ -631,8 +629,8 @@
       ],
       "ServiceIds": [
         "svc_diagtrack", "svc_dmwappush", "svc_maps", "svc_retail", "svc_remote_registry", "svc_location", "svc_diagnostics", "svc_dps", "svc_wdi_host", "svc_wdi_system", "svc_diagsvc", "svc_wer", "svc_wer_support", "svc_performance_logs", "svc_assigned_access",
-        "svc_shared_pc", "svc_data_usage", "svc_sysmain", "svc_pca", "svc_ai_fabric", "svc_notifications", "svc_notifications_user", "svc_phone", "svc_cdp", "svc_cdp_user",
-        "svc_device_flow", "svc_contact_index", "svc_sync", "svc_messaging", "svc_xbl_auth", "svc_xbl_save", "svc_xbox_network", "svc_xbox_accessory",
+        "svc_shared_pc", "svc_data_usage", "svc_sysmain", "svc_pca", "svc_ai_fabric", "svc_notifications", "svc_notifications_user", "svc_phone", "svc_cdp",
+        "svc_contact_index", "svc_sync", "svc_messaging", "svc_xbl_auth", "svc_xbl_save", "svc_xbox_network", "svc_xbox_accessory",
         "svc_remote_desktop", "svc_routing", "svc_net_tcp", "svc_uev", "svc_dialog_blocking", "svc_appv", "svc_keyboard_filter"
       ]
     },
@@ -648,8 +646,8 @@
       ],
       "ServiceIds": [
         "svc_diagtrack", "svc_dmwappush", "svc_maps", "svc_retail", "svc_remote_registry", "svc_location", "svc_diagnostics", "svc_dps", "svc_wdi_host", "svc_wdi_system", "svc_diagsvc", "svc_wer", "svc_wer_support", "svc_performance_logs", "svc_assigned_access",
-        "svc_shared_pc", "svc_data_usage", "svc_sysmain", "svc_pca", "svc_ai_fabric", "svc_notifications", "svc_notifications_user", "svc_phone", "svc_cdp", "svc_cdp_user",
-        "svc_device_flow", "svc_contact_index", "svc_sync", "svc_messaging", "svc_xbl_auth", "svc_xbl_save", "svc_xbox_network", "svc_xbox_accessory",
+        "svc_shared_pc", "svc_data_usage", "svc_sysmain", "svc_pca", "svc_ai_fabric", "svc_notifications", "svc_notifications_user", "svc_phone", "svc_cdp",
+        "svc_contact_index", "svc_sync", "svc_messaging", "svc_xbl_auth", "svc_xbl_save", "svc_xbox_network", "svc_xbox_accessory",
         "svc_remote_desktop", "svc_routing", "svc_net_tcp", "svc_uev", "svc_dialog_blocking", "svc_appv", "svc_keyboard_filter", "svc_open_ssh",
         "svc_game_input", "svc_camera", "svc_search", "svc_print", "svc_shared_access", "svc_edge_update", "svc_edge_update_machine", "svc_mt_agent", "svc_mt_scheduler"
       ]

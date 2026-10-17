@@ -72,7 +72,59 @@ function Write-DebloatLog {
         Message = $Message
         Data = $Data
     }
-    $entry | ConvertTo-Json -Compress -Depth 8 | Add-Content -LiteralPath $Context.LogPath -Encoding UTF8
+    $line = $entry | ConvertTo-Json -Compress -Depth 8
+    $encoding = [System.Text.UTF8Encoding]::new($false)
+    $lastLockError = $null
+    for ($attempt = 1; $attempt -le 6; $attempt++) {
+        $stream = $null
+        try {
+            $stream = [System.IO.FileStream]::new(
+                [System.IO.Path]::GetFullPath($Context.LogPath),
+                [System.IO.FileMode]::Append,
+                [System.IO.FileAccess]::Write,
+                ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete)
+            )
+            $bytes = $encoding.GetBytes($line + [Environment]::NewLine)
+            $stream.Write($bytes, 0, $bytes.Length)
+            $stream.Flush()
+            return
+        }
+        catch [System.IO.IOException] {
+            $win32ErrorCode = $_.Exception.HResult -band 0xFFFF
+            if ($win32ErrorCode -notin @(32, 33)) {
+                throw
+            }
+            $lastLockError = $_.Exception
+            if ($attempt -lt 6) {
+                Start-Sleep -Milliseconds (50 * $attempt)
+            }
+        }
+        finally {
+            if ($null -ne $stream) {
+                $stream.Dispose()
+            }
+        }
+    }
+    $fallbackPath = Join-Path $Context.SessionPath ('operations-fallback-{0}.jsonl' -f [Guid]::NewGuid().ToString('N'))
+    try {
+        $fallbackStream = [System.IO.FileStream]::new(
+            $fallbackPath,
+            [System.IO.FileMode]::CreateNew,
+            [System.IO.FileAccess]::Write,
+            ([System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete)
+        )
+        try {
+            $fallbackBytes = $encoding.GetBytes($line + [Environment]::NewLine)
+            $fallbackStream.Write($fallbackBytes, 0, $fallbackBytes.Length)
+            $fallbackStream.Flush()
+        }
+        finally {
+            $fallbackStream.Dispose()
+        }
+    }
+    catch {
+        throw [System.IO.IOException]::new("El registro principal esta bloqueado y no se pudo escribir el registro alternativo '$fallbackPath'.", $_.Exception)
+    }
 }
 
 function Write-DebloatNotApplied {
@@ -186,26 +238,35 @@ function Read-DebloatLogEntries {
         [string]$SessionPath
     )
 
-    $logPath = Join-Path $SessionPath 'operations.jsonl'
-    if (-not (Test-Path -LiteralPath $logPath -PathType Leaf)) {
+    if (-not (Test-Path -LiteralPath $SessionPath -PathType Container)) {
         return [object[]]@()
     }
 
-    $content = Read-DebloatSharedTextFile -Path $logPath
-    $rawLines = @($content -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
     $entries = [System.Collections.Generic.List[object]]::new()
-    for ($index = 0; $index -lt $rawLines.Count; $index++) {
-        try {
-            $entries.Add(($rawLines[$index] | ConvertFrom-Json))
-        }
-        catch {
-            if ($index -eq $rawLines.Count - 1 -and -not $content.EndsWith("`n")) {
-                break
+    $logPaths = @(
+        Get-ChildItem -LiteralPath $SessionPath -File |
+            Where-Object { $_.Name -eq 'operations.jsonl' -or $_.Name -like 'operations-fallback-*.jsonl' } |
+            Select-Object -ExpandProperty FullName
+    )
+    if ($logPaths.Count -eq 0) {
+        return [object[]]@()
+    }
+    foreach ($logPath in $logPaths) {
+        $content = Read-DebloatSharedTextFile -Path $logPath
+        $rawLines = @($content -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+        for ($index = 0; $index -lt $rawLines.Count; $index++) {
+            try {
+                $entries.Add(($rawLines[$index] | ConvertFrom-Json))
             }
-            throw [System.IO.InvalidDataException]::new("El registro contiene una linea JSON invalida: $logPath", $_.Exception)
+            catch {
+                if ($index -eq $rawLines.Count - 1 -and -not $content.EndsWith("`n")) {
+                    break
+                }
+                throw [System.IO.InvalidDataException]::new("El registro contiene una linea JSON invalida: $logPath", $_.Exception)
+            }
         }
     }
-    return [object[]]$entries
+    return [object[]]@($entries | Sort-Object TimestampUtc)
 }
 
 function Get-DebloatDebugReport {
