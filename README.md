@@ -1,5 +1,5 @@
 ![Alt text](assets/interfaz.png) \
-![Update](https://img.shields.io/badge/Update_v1.1-verde) \
+![Update](https://img.shields.io/badge/Update_v1.1-verde) 
 ```diff
 -Se eliminó la opción de detener el servicio del panel "Dispositivos"
 !Se corrigió un bug relacionado con los permisos de modificación de archivos que interfería con WDefender
@@ -39,7 +39,7 @@ Se mantiene UAC, Microsoft Defender y las politicas permanentes de ejecucion sin
 - [FPSBoostPro](https://github.com/itechfever/FPSBoostPro)
 
 ## English
-![Update](https://img.shields.io/badge/Update!_v1.1)\
+![Update](https://img.shields.io/badge/Update_v1.1-verde)
 ```diff
 -The option to stop the service from the "Devices" panel was removed
 !A bug related to file modification permissions that interfered with WDefender has been fixed
