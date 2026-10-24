@@ -31,6 +31,7 @@ try {
     $requiredPaths = @(
         'TinkamaCustomDebloat.ps1'
         'config\catalog.json'
+        'config\TinkamaCustom.pow'
         'ui\MainWindow.xaml'
         'src\Engine.psm1'
     )

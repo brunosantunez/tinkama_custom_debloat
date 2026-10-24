@@ -52,7 +52,7 @@ function Get-DebloatActionCommand {
         }
         'Special' {
             $commands = @{
-                SetCustomPowerPlan = 'powercfg.exe /duplicatescheme SCHEME_MIN; powercfg.exe /setactive <TinkamaCustomGuid>'
+                SetCustomPowerPlan = 'powercfg.exe /import config\TinkamaCustom.pow <TinkamaCustomGuid>; powercfg.exe /setactive <TinkamaCustomGuid>'
                 CleanTemporaryFiles = "Remove-Item -LiteralPath '`$env:SystemRoot\Prefetch\*','`$env:SystemRoot\Temp\*','`$env:TEMP\*' -Recurse -Force"
                 DisableHibernation = 'powercfg.exe /hibernate off'
                 DisableReservedStorage = 'Set-WindowsReservedStorageState -State Disabled'

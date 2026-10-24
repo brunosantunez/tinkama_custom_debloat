@@ -48,24 +48,29 @@ function Set-CustomPowerPlan {
         [pscustomobject]$Context
     )
 
-    $highPerformanceGuid = '8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c'
     $customGuid = 'f5e2b3cd-59a0-4f40-9de8-29a0f2a768b8'
+    $powerPlanPath = Join-Path (Split-Path -Parent $PSScriptRoot) 'config\TinkamaCustom.pow'
+    if (-not (Test-Path -LiteralPath $powerPlanPath -PathType Leaf)) {
+        throw [System.IO.FileNotFoundException]::new("No se encontro el plan de energia para importar: $powerPlanPath")
+    }
     $activeGuid = Get-ActivePowerSchemeGuid
     $schemes = Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments '/list' -TimeoutSeconds 30 -AllowedExitCodes @(0)
     $customExisted = $schemes.StandardOutput -match [regex]::Escape($customGuid)
+    $previousPlanPath = Join-Path $Context.SessionPath 'previous-power-plan.pow'
+    if ($customExisted) {
+        Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments ('/export "{0}" {1}' -f $previousPlanPath, $customGuid) -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
+    }
     Save-SpecialSnapshot -Context $Context -Name 'PowerPlan' -Value ([pscustomobject]@{ ActiveGuid = $activeGuid; CustomExisted = $customExisted; CustomGuid = $customGuid })
 
-    if (-not $customExisted) {
-        Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/duplicatescheme $highPerformanceGuid $customGuid" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
+    if ($customExisted) {
+        if ($activeGuid -eq $customGuid) {
+            Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments '/setactive SCHEME_BALANCED' -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
+        }
+        Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/delete $customGuid" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
     }
-    $renameArguments = '/changename {0} "Tinkama Custom - Alto rendimiento" "Plan estable para mantenimiento y uso diario"' -f $customGuid
-    Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments $renameArguments -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
-    Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/setacvalueindex $customGuid SUB_PROCESSOR PROCTHROTTLEMIN 100" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
-    Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/setdcvalueindex $customGuid SUB_PROCESSOR PROCTHROTTLEMIN 5" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
-    Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/setacvalueindex $customGuid SUB_PROCESSOR PROCTHROTTLEMAX 100" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
-    Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/setdcvalueindex $customGuid SUB_PROCESSOR PROCTHROTTLEMAX 100" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
+    Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments ('/import "{0}" {1}' -f $powerPlanPath, $customGuid) -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
     Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/setactive $customGuid" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
-    Write-DebloatLog -Context $Context -Level Success -Component 'Power' -Message 'Plan personalizado creado y activado.' -Data @{ PreviousGuid = $activeGuid; CustomGuid = $customGuid }
+    Write-DebloatLog -Context $Context -Level Success -Component 'Power' -Message 'Plan personalizado importado y activado.' -Data @{ PreviousGuid = $activeGuid; CustomGuid = $customGuid }
 }
 
 function Clear-DebloatTemporaryFiles {
@@ -321,9 +326,23 @@ function Restore-DebloatSpecialState {
         $record = $records[$index]
         switch ($record.Name) {
             'PowerPlan' {
+                $customGuid = [string]$record.Value.CustomGuid
+                $customExisted = [bool]$record.Value.CustomExisted
+                if ($customExisted -and (Test-Path -LiteralPath (Join-Path $Context.SessionPath 'previous-power-plan.pow') -PathType Leaf)) {
+                    $currentGuid = Get-ActivePowerSchemeGuid
+                    if ($currentGuid -eq $customGuid) {
+                        Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments '/setactive SCHEME_BALANCED' -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
+                    }
+                    $schemes = Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments '/list' -TimeoutSeconds 30 -AllowedExitCodes @(0)
+                    if ($schemes.StandardOutput -match [regex]::Escape($customGuid)) {
+                        Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/delete $customGuid" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
+                    }
+                    $previousPlanPath = Join-Path $Context.SessionPath 'previous-power-plan.pow'
+                    Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments ('/import "{0}" {1}' -f $previousPlanPath, $customGuid) -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
+                }
                 Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/setactive $($record.Value.ActiveGuid)" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
-                if (-not [bool]$record.Value.CustomExisted) {
-                    Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/delete $($record.Value.CustomGuid)" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
+                if (-not $customExisted) {
+                    Invoke-DebloatNativeCommand -FilePath 'powercfg.exe' -Arguments "/delete $customGuid" -TimeoutSeconds 30 -AllowedExitCodes @(0) | Out-Null
                 }
             }
             'Hibernation' {
